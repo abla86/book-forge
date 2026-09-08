@@ -1,4 +1,4 @@
-import { BookProject, Chapter } from "../types";
+import { BookProject, Chapter, ContinuityAnomaly } from "../types";
 
 export const defaultChapters32: Chapter[] = [
   {
@@ -551,7 +551,44 @@ export const initialProject: BookProject = {
       background: "28 år gammel konservator utdannet i Oslo, vendt tilbake til barndomsbyen Bergen etter familiens tap.",
       voice: "Presis, analytisk, men preget av underliggende sårbarhet og uventet mot i pressede situasjoner.",
       secrets: "Hennes mor etterlot et brev hun aldri turte å åpne før hun krysset dørstokken på Nordnes.",
-      arc: "Fra distansert tilskuer til bevisst vokter av kulturarv og byens skjulte hjerte."
+      arc: "Fra distansert tilskuer til bevisst vokter av kulturarv og byens skjulte hjerte.",
+      motivationInternal: "Finne tilhørighet og gjenopprette æren til slekten etter morens tragiske død i isolasjon.",
+      motivationExternal: "Hindre at kreditorene og Castberg overtar Strangehagen 14, og forsegle vannporten før neste springflo.",
+      internalConflict: "Lengselen etter et forutsigbart liv kontra den uimotståelige fascinasjonen for dypets hemmeligheter og frykten for å arve Ragnhilds 'galskap'.",
+      externalConflict: "Må navigere mellom Elias' hemmelighold, Castbergs innleide sikkerhetsfolk og tidspresset fra tidevannet under Bergen.",
+      relationships: [
+        {
+          targetCharacterName: "Elias Berg",
+          relationType: "Ufrivillig alliert / Voksende tillit",
+          dynamic: "Miras skepsis mot Elias' akademiske distanse utfordres når han risikerer livet for å beskytte henne under Bryggen.",
+          tensionLevel: 7,
+        },
+        {
+          targetCharacterName: "Henrik Castberg",
+          relationType: "Erkefiende / Trussel mot hjemmet",
+          dynamic: "Castberg forsøker å manipulere Miras økonomiske sårbarhet; Mira gjennomskuer ham og gjør motstand.",
+          tensionLevel: 9,
+        },
+        {
+          targetCharacterName: "Grandtante Ragnhild Vang",
+          relationType: "Avdød mentor / Familiearv",
+          dynamic: "Miras barneminne om en fjern, rar tante transformeres til dyp respekt for et heroisk livsvirke.",
+          tensionLevel: 4,
+        },
+        {
+          targetCharacterName: "Astrid Lindholm",
+          relationType: "Vokterrådgiver / Moralsk kompass",
+          dynamic: "Astrid gir Mira sannheten i porsjoner hun tåler, men krever at Mira tar det endelige ansvaret selv.",
+          tensionLevel: 3,
+        }
+      ],
+      personalityEvolution: {
+        act1: "Forsiktig, regelstyrt og tvilende; søker rasjonelle forklaringer på alle avvik.",
+        act2: "Presset ut av komfortsonen; lærer å stole på sansene og intuisjonen i underjordiske labyrinter.",
+        act3: "Besluttsom og konfronterende; villig til å bryte overflatelover for å beskytte de dypere sannhetene.",
+        act4: "Helhetlig integrert; aksepterer sin arv som vokter med rolig verdighet og indre styrke."
+      },
+      journeySummary: "Mira starter som en rotløs papirkonservator som frykter fortiden, men tvinges gjennom arv og oversvømmelse til å tre inn i dypet under Bergen. Gjennom møtet med Elias og avsløringen av familiens hundreårige pakt forvandles hennes frykt for isolasjon til et uselvisk lederskap. Hun ofrer illusjonen om et ukomplisert liv for å bli bindeleddet mellom to verdener."
     },
     {
       id: "char-2",
@@ -561,8 +598,33 @@ export const initialProject: BookProject = {
       goal: "Gjøre opp for sin slekts svik og forhindre at Castberg-stiftelsen sprenger vannportene.",
       background: "31 år, stipendiat i middelaldergeografi ved Universitetsmuseet i Bergen.",
       voice: "Hurtigsnakkende, faktabasert, tørr humor som dekker over dyp frykt for feilgrep.",
-      secrets: "Hans bestefar var med på å forsegle Johans gravkammer under byen.",
-      arc: "Lærer at lojalitet betyr handling her og nå, ikke bare lojalitet til bøker og gamle synder."
+      secrets: "Hans bestefar var med på å forsegle Johans gravkammer under byen i 1924.",
+      arc: "Lærer at lojalitet betyr handling her og nå, ikke bare lojalitet til bøker og gamle synder.",
+      motivationInternal: "Vaske bort skammen over bestefarens feighet og finne tilgivelse gjennom oppofrelse.",
+      motivationExternal: "Finne den opprinnelige paktprotokollen og assistere Mira til Svartediket-kammeret.",
+      internalConflict: "Akademisk intellektualisering som beskyttelsesmekanisme mot overveldende panikk i trange rom og ved vannmasser.",
+      externalConflict: "Hans stilling ved museet trues av Castbergs donasjoner, samtidig som han mistenkes av politiet.",
+      relationships: [
+        {
+          targetCharacterName: "Mira Vang",
+          relationType: "Partner i fare / Gryende kjærlighet",
+          dynamic: "Han beundrer Miras handlekraft, mens hun jordnært holder ham fast når han overanalyserer.",
+          tensionLevel: 6,
+        },
+        {
+          targetCharacterName: "Henrik Castberg",
+          relationType: "Tidligere oppdragsgiver / Fiende",
+          dynamic: "Castberg truet Elias med å frata ham doktorgraden dersom han nektet å overlevere kartmaterialet.",
+          tensionLevel: 8,
+        }
+      ],
+      personalityEvolution: {
+        act1: "Sjenert, distansert og hemmelighetsfull; gjemmer seg bak historiske fakta og protokoller.",
+        act2: "Tvunget inn i fysisk fare; innrømmer sine feilgrep og overvinner vannskrekken for Miras skyld.",
+        act3: "Trosser Castbergs menn ansikt til ansikt med moralsk ryggrad.",
+        act4: "Finner fred med sin families historie og trer inn i partnerskapet som likeverdig historisk arkivar for riket."
+      },
+      journeySummary: "Elias bærer en tung arvesynd som lammer hans sosiale liv, men finner i Miras søken en sjanse til forløsning. Ved å konfrontere sin lammende vannskrekk og ofre sin akademiske karriere for å støtte henne, vokser han fra en sky passiv observatør til en modig forsvarer av byens skjulte fundamenter."
     },
     {
       id: "char-3",
@@ -573,7 +635,32 @@ export const initialProject: BookProject = {
       background: "Levde tilbaketrukket i Strangehagen i 60 år, kjent som 'den eksentriske karttegneren'.",
       voice: "Varm, bestemt, poetisk med dyp forankring i vestlandsk folklore.",
       secrets: "Besøkte det underjordiske riket tre ganger på 1970-tallet for å fornye paktsteinene.",
-      arc: "Vises gjennom notater, lydopptak og brev som gradvis avkodes."
+      arc: "Vises gjennom notater, lydopptak og brev som gradvis avkodes.",
+      motivationInternal: "Beskytte familien mot den samme ensomheten som fortærte henne selv.",
+      motivationExternal: "Sørge for at Mira får tilgang til nøkkelen og forstår kartets symbolikk i tide.",
+      internalConflict: "Sorgen over aldri å ha kunnet dele sannheten med sine nærmeste mens hun levde.",
+      externalConflict: "Holdt Castberg-slekten på avstand gjennom tiår med juridiske finter.",
+      relationships: [
+        {
+          targetCharacterName: "Mira Vang",
+          relationType: "Grandtante og veiviser fra graven",
+          dynamic: "Etterlot brev og gåter som er skreddersydd til Miras intellekt og følelsesliv.",
+          tensionLevel: 2,
+        },
+        {
+          targetCharacterName: "Astrid Lindholm",
+          relationType: "Livslang hemmelig venninne",
+          dynamic: "De to kvinnene delte ansvaret for paktens overlevelse gjennom den kalde krigen.",
+          tensionLevel: 1,
+        }
+      ],
+      personalityEvolution: {
+        act1: "Fremstår som et fjernt, tragisk mysterium for Mira.",
+        act2: "Trer frem som en skarp og klok planlegger gjennom notatene.",
+        act3: "Anerkjennes som den modigste kvinnen i familiens historie.",
+        act4: "Hennes minne velsignes idet den nye pakten besegles."
+      },
+      journeySummary: "Selv om Ragnhilds liv ender før romanen begynner, er hennes åndelige reise en triumf: Hennes seks tiår med taus vaktpost resulterer ikke i glemsel, men i en perfekt forberedt overlevering til arvingen hun alltid trodde på."
     },
     {
       id: "char-4",
@@ -584,7 +671,26 @@ export const initialProject: BookProject = {
       background: "Milliardærarving og leder for Castberg Geo-Holding.",
       voice: "Sivilisert, glatt, juridisk presis, men hensynsløs når han møter motstand.",
       secrets: "Selskapet hans står på randen av konkurs og er avhengig av funn under byen.",
-      arc: "Underspiller rikets magiske natur helt til det blir hans undergang."
+      arc: "Underspiller rikets magiske natur helt til det blir hans undergang.",
+      motivationInternal: "Desperat behov for å overgå sin fars prestasjoner og unngå offentlig ydmykelse.",
+      motivationExternal: "Bore gjennom fjellet før vernemyndighetene eller vannflommene stanser konsesjonen.",
+      internalConflict: "Erkjennelsen av at kreftene under byen er virkelige, kjemper mot hans kyniske verdensbilde.",
+      externalConflict: "Miras urokkelige motstand og byantikvarens advarsler.",
+      relationships: [
+        {
+          targetCharacterName: "Mira Vang",
+          relationType: "Hinder som må ryddes av veien",
+          dynamic: "Går fra høflig overlegenhet til panisk aggresjon når hun nekter å selge.",
+          tensionLevel: 9,
+        }
+      ],
+      personalityEvolution: {
+        act1: "Selvsikker, elegant og veltalende forretningsmann.",
+        act2: "Frustrert over motstanden; tar i bruk skitne metoder og overvåking.",
+        act3: "Desperat og nådeløs; ignorerer fysiske varselsignaler fra fjellet.",
+        act4: "Knust av naturens og rikets uovervinnelige krefter."
+      },
+      journeySummary: "Castbergs reise er en klassisk hybris-tragedie: Drevet av frykt for tap av status ignorerer han de urgamle lovene og forsøker å kommersialisere det hellige dypet, for til slutt å se sitt eget imperium smuldre under vannmassene han forsøkte å temme."
     },
     {
       id: "char-5",
@@ -592,10 +698,29 @@ export const initialProject: BookProject = {
       role: "Ordenens leder",
       archetype: "Den vise rådgiveren",
       goal: "Opprettholde byens hemmelige likevekt uten at offentligheten får panikk.",
-      background: "Pensionert stadsarkivar, 74 år, kjenner alle hemmelige rom under Mariakirken.",
+      background: "Pensjonert stadsarkivar, 74 år, kjenner alle hemmelige rom under Mariakirken.",
       voice: "Lavmælt, myndig, som gammelt pergament.",
-      secrets: "Var ungdomskjæreste med Johans yngre bror.",
-      arc: "Overdrar tillitsvervet til Mira og Elias med verdighet."
+      secrets: "Var ungdomskjæreste med Johans yngre bror og har båret nøkkelkopien i 50 år.",
+      arc: "Overdrar tillitsvervet til Mira og Elias med verdighet.",
+      motivationInternal: "Avslutte sitt livsverk med visshet om at fremtiden er trygg.",
+      motivationExternal: "Samle de siste løse trådene i Arkitektbrorskapet og holde myndighetene i ro.",
+      internalConflict: "Skyldfølelse over å ha holdt Mira utenfor sannheten så lenge for å beskytte henne.",
+      externalConflict: "Motarbeider Castbergs lobbyvirksomhet i rådhuset i det stille.",
+      relationships: [
+        {
+          targetCharacterName: "Mira Vang",
+          relationType: "Beskytter og veileder",
+          dynamic: "Møter Miras sinne med tålmodighet og gir henne verktøyene hun trenger for å lede.",
+          tensionLevel: 3,
+        }
+      ],
+      personalityEvolution: {
+        act1: "Mystisk skikkelse i bakgrunnen som observerer og tester Miras reaksjoner.",
+        act2: "Åpner arkivene og gir uerstattelig historisk ammunisjon.",
+        act3: "Står opp mot Castberg under stormfloden med rolig autoritet.",
+        act4: "Trer til side i takknemlighet idet den nye generasjonen overtar."
+      },
+      journeySummary: "Astrid fullender sin livsoppgave ved å føre stafettpinnen videre fra Ragnhilds generasjon til Mira og Elias, og beviser at visdom og tålmodighet overvinner både grådighet og tidens tann."
     }
   ],
   locations: [
@@ -769,3 +894,50 @@ export const initialProject: BookProject = {
   createdAt: "2026-09-07T18:00:00Z",
   updatedAt: "2026-09-07T19:25:00Z"
 };
+
+export const sampleContinuityAnomalies: ContinuityAnomaly[] = [
+  {
+    id: "anom-1",
+    category: "Plott",
+    severity: "Moderat",
+    chapterNumber: 3,
+    chapterTitle: "Historikeren",
+    issue: "Elias nevner Johans loggbok fra 1924, men Mira finner først selve den forseglede esken i kapittel 5.",
+    impact: "Leseren kan stusse over hvordan Elias allerede vet bokens eksakte tittel og bindnummer før den er fysisk funnet.",
+    suggestion: "Endre dialogen i Kapittel 3 slik at Elias kun refererer til et rykte i museets arkiver, og la ham bli genuint overrasket når Mira faktisk viser ham esken i Kapittel 5.",
+    resolved: false
+  },
+  {
+    id: "anom-2",
+    category: "Karakter",
+    severity: "Kritisk",
+    chapterNumber: 4,
+    chapterTitle: "Under Bryggen",
+    issue: "Elias kaster seg ut i vannet under slusekollapsen, men i Bokbibelen er det etablert at han har lammende vannskrekk etter et traume i barndommen.",
+    impact: "Bryter karakterens etablerte psykologiske sårbarhet og svekker den planlagte karakterbuen der han overvinner dette først i Akt 2B.",
+    suggestion: "La Elias fryse til i panikk på avsatsen og strekke ut en jernstang mens Mira må ta taket i vannet, slik at hans indre konflikt bevares intakt.",
+    resolved: false
+  },
+  {
+    id: "anom-3",
+    category: "Tidslinje",
+    severity: "Mindre",
+    chapterNumber: 2,
+    chapterTitle: "Rommet bak veggen",
+    issue: "Mira forlater Strangehagen kl. 23:45, men når hun ankommer Universitetsmuseet i Kapittel 3, oppgis det at det er midt i museets åpningstid kl. 14:15.",
+    impact: "Tidslinjen hopper 14 timer fremover uten at overgangen eller Miras søvnløse natt i huset er markert.",
+    suggestion: "Sett inn en kort overgangssetning i starten av kapittel 3: «Etter en rastløs natt med kartet oppslått på spisebordet, sto hun på trappen til Universitetsmuseet idet dørene åpnet.»",
+    resolved: false
+  },
+  {
+    id: "anom-4",
+    category: "Verdensbygging",
+    severity: "Moderat",
+    chapterNumber: 1,
+    chapterTitle: "Arven",
+    issue: "Messingnøkkelen låser opp portalen i kjelleren, men ifølge verdensregel #1 aktiveres låsemekanismen kun ved springflo.",
+    impact: "Svekker den magiske verdenslogikken og spenningselementet rundt flo og fjøre som tidsfrist for karakterene.",
+    suggestion: "Tydeliggjør i teksten at kveldsklokken i Korskirken akkurat slår klokken 22:00 og at Vågens flobølge presser vann inn i kanalene nøyaktig i det Mira vrir om nøkkelen.",
+    resolved: false
+  }
+];

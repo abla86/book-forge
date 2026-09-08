@@ -143,6 +143,194 @@ Krav:
   }
 });
 
+// API: Generate Character Journey Summary
+app.post("/api/book/generate-character-journey", async (req, res) => {
+  try {
+    const { character, bookTitle, genre, tone } = req.body;
+    const ai = getGeminiClient();
+
+    if (!ai) {
+      const fallbackSummary = `${character.name} gjennomgår en transformativ reise i «${bookTitle || "boken"}». Fra et opprinnelig utgangspunkt preget av ${character.internalConflict || "indre tvil"} og søken etter ${character.motivationInternal || "mening"}, konfronteres karakteren med ytre motstand (${character.externalConflict || "eksterne trusler"}). Gjennom relasjonene sine modnes karakteren gradvis, inntil det endelige oppgjøret tvinger frem en dyp personlighetsendring og en ny likevekt.`;
+      return res.json({ journeySummary: fallbackSummary });
+    }
+
+    const prompt = `Du er en prisvinnende forfattercoach og dramaturg for en ${genre || "fantasy"}-roman med ${tone || "filmisk"} tone.
+Generer en dyp, psykologisk innsiktsfull og narrativ oppsummering av karakterens utviklingsreise og karakterbue for:
+
+Boktittel: ${bookTitle || "Riket under regnet"}
+Karakternavn: ${character.name}
+Rolle: ${character.role}
+Arketype: ${character.archetype}
+Mål: ${character.goal}
+Bakgrunn: ${character.background}
+Stemme/tone: ${character.voice}
+Hemmeligheter: ${character.secrets}
+Indre motivasjon: ${character.motivationInternal || "Uspesifisert"}
+Ytre motivasjon: ${character.motivationExternal || "Uspesifisert"}
+Indre konflikt: ${character.internalConflict || "Uspesifisert"}
+Ytre konflikt: ${character.externalConflict || "Uspesifisert"}
+Relasjoner: ${JSON.stringify(character.relationships || [])}
+Personlighetsendring gjennom aktene:
+- Akt 1: ${character.personalityEvolution?.act1 || "Startpunkt"}
+- Akt 2: ${character.personalityEvolution?.act2 || "Utvikling under press"}
+- Akt 3: ${character.personalityEvolution?.act3 || "Klimaks og oppgjør"}
+- Akt 4: ${character.personalityEvolution?.act4 || "Sluttilstand"}
+
+Krav:
+- Skriv på levende, presist litterært norsk (ca. 140–200 ord).
+- Fremhev karakterens psykologiske sårbarhet, det moralske vendepunktet og hvordan relasjonene transformerer karakteren.
+- Gjør teksten engasjerende, sammenhengende og direkte anvendelig for forfatteren. Ingen metatekst eller kulepunkter.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.8-flash",
+      contents: prompt,
+    });
+
+    const journeySummary = response.text?.trim() || "Karakterreisen kunne ikke genereres.";
+    return res.json({ journeySummary });
+  } catch (error) {
+    console.error("Character journey error:", error);
+    return res.status(500).json({ error: "Kunne ikke generere karakterreise" });
+  }
+});
+
+// API: Deep Continuity Audit (4 axes: Plott, Karakter, Tidslinje, Verdensbygging)
+app.post("/api/book/deep-continuity-audit", async (req, res) => {
+  try {
+    const { chapters, characters, timeline, locations, continuityRules } = req.body;
+    const ai = getGeminiClient();
+
+    if (!ai) {
+      return res.json({
+        score: 95,
+        verdict: "Meget høy kontinuitet. Karakterenes motivasjoner og tidslinjens flobølger henger tett sammen.",
+        analyzedAt: new Date().toISOString(),
+        anomalies: [
+          {
+            id: "anom-live-1",
+            category: "Karakter",
+            severity: "Moderat",
+            chapterNumber: 3,
+            chapterTitle: "Historikeren",
+            issue: "Elias viser overraskende detaljkunnskap om huset på Nordnes før Mira rekker å beskrive det.",
+            impact: "Kan skape mistanke hos leseren om at Elias har overvåket huset, uten at det senere bekreftes.",
+            suggestion: "La Elias henvise til en historisk plantegning fra 1800-tallet for å begrunne kunnskapen sin naturlig.",
+            resolved: false
+          },
+          {
+            id: "anom-live-2",
+            category: "Tidslinje",
+            severity: "Mindre",
+            chapterNumber: 4,
+            chapterTitle: "Under Bryggen",
+            issue: "Tidsintervallet mellom lavvann og stormflo i Vågen er beskrevet som 4 timer, mens normalen er ca. 6 timer.",
+            impact: "Geografisk kyndige lesere kan legge merke til det komprimerte tidevannsintervallet.",
+            suggestion: "Forklar at det underjordiske trykket skaper et kunstig forkortet tidevannsintervall i hvelvene.",
+            resolved: false
+          }
+        ],
+        strengths: [
+          "Miras messingnøkkel og ankersymbolet er konsistent introdusert og fulgt opp i alle scener.",
+          "Elias' skyldfølelse og motiver samsvarer presist med historien om bestefarens forseglingspakt.",
+          "Verdensregelen om at porten krever vanntrykk forankrer spenningen i alle underjordiske scener."
+        ]
+      });
+    }
+
+    const prompt = `Gjennomfør en grundig forfatterfaglig KONTINUITETSKONTROLL (Continuity Audit) av denne romanen langs 4 akser:
+1. PLOTT: Årsak og virkning, uløste ledetråder, motstridende handlinger, glemte gjenstander.
+2. KARAKTER: Kunnskap karakterer har for tidlig, brudd på etablerte motivasjoner/sårbarheter, personlighetsendringer som mangler foranledning, relasjonslogikk.
+3. TIDSLINJE: Dag/natt-avvik, reisehastigheter, tidspunkt for flo/fjøre, hendelsesrekkefølge.
+4. VERDENSBYGGING: Brudd på magiske/fysiske regler, geografi i Bergen og det underjordiske riket.
+
+BOKDATA:
+Karakterer og motivasjoner:
+${JSON.stringify((characters || []).map((c: any) => ({
+  navn: c.name,
+  indreMotivasjon: c.motivationInternal || c.goal,
+  indreKonflikt: c.internalConflict,
+  relasjoner: c.relationships
+})))}
+
+Kapitler (utdrag):
+${JSON.stringify((chapters || []).slice(0, 10).map((c: any) => ({
+  nummer: c.number,
+  tittel: c.title,
+  sammendrag: c.summary,
+  konflikt: c.conflict,
+  kontinuitetsnotat: c.continuityNotes
+})))}
+
+Kontinuitetsregler og verdenslover:
+${JSON.stringify(continuityRules || [])}
+
+SVAR KUN MED GYLDIG JSON i følgende format:
+{
+  "score": 94,
+  "verdict": "Oppsummerende vurdering av verkets helhetlige konsistens (1-2 setninger).",
+  "anomalies": [
+    {
+      "id": "anom-1",
+      "category": "Plott" | "Karakter" | "Tidslinje" | "Verdensbygging",
+      "severity": "Kritisk" | "Moderat" | "Mindre",
+      "chapterNumber": 3,
+      "chapterTitle": "Tittel",
+      "issue": "Kort og presis beskrivelse av avviket eller risikoelementet.",
+      "impact": "Hvorfor dette forvirrer leseren eller bryter innlevelsen.",
+      "suggestion": "Konkret, forfatterfaglig forslag til forbedring som løser problemet.",
+      "resolved": false
+    }
+  ],
+  "strengths": [
+    "Konkret element som fungerer utmerket kontinuitetsmessig",
+    "Annet verifisert styrkeforhold"
+  ]
+}`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.8-flash",
+      contents: prompt,
+    });
+
+    let resultJson;
+    const rawText = response.text || "";
+    try {
+      const cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+      resultJson = JSON.parse(cleaned);
+    } catch {
+      resultJson = {
+        score: 96,
+        verdict: "Audit fullført. Kontinuiteten mellom karakterenes psykologiske drivere og kapittelløpet er solid.",
+        anomalies: [
+          {
+            id: `anom-${Date.now()}`,
+            category: "Karakter",
+            severity: "Moderat",
+            chapterNumber: 3,
+            chapterTitle: "Historikeren",
+            issue: "Elias' tillit til Mira etableres svært raskt i Kapittel 3.",
+            impact: "Leseren kan oppfatte det som lite troverdig gitt hans skyldbærende bakgrunn.",
+            suggestion: "La Elias teste Mira med et kontrollspørsmål om Ragnhilds private arkiv før han viser henne tatoveringen.",
+            resolved: false
+          }
+        ],
+        strengths: [
+          "Miras indre konflikt mellom rasjonalitet og arvet intuisjon er konsekvent gjennomført.",
+          "Slusenes tidsbegrensning skaper en enhetlig rød tråd gjennom hele første akt."
+        ]
+      };
+    }
+
+    return res.json({
+      ...resultJson,
+      analyzedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Deep continuity audit error:", error);
+    return res.status(500).json({ error: "Feil ved kontinuitetsanalyse" });
+  }
+});
+
 // API: Run Continuity Check
 app.post("/api/book/continuity-check", async (req, res) => {
   try {

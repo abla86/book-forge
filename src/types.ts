@@ -15,6 +15,20 @@ export interface Chapter {
   continuityNotes: string;
 }
 
+export interface CharacterRelationship {
+  targetCharacterName: string;
+  relationType: string;
+  dynamic: string;
+  tensionLevel: number; // 1 to 10
+}
+
+export interface PersonalityEvolution {
+  act1: string;
+  act2: string;
+  act3: string;
+  act4?: string;
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -25,6 +39,33 @@ export interface Character {
   voice: string;
   secrets: string;
   arc: string;
+  motivationInternal?: string;
+  motivationExternal?: string;
+  internalConflict?: string;
+  externalConflict?: string;
+  relationships?: CharacterRelationship[];
+  personalityEvolution?: PersonalityEvolution;
+  journeySummary?: string;
+}
+
+export interface ContinuityAnomaly {
+  id: string;
+  category: "Plott" | "Karakter" | "Tidslinje" | "Verdensbygging";
+  severity: "Kritisk" | "Moderat" | "Mindre";
+  chapterNumber?: number;
+  chapterTitle?: string;
+  issue: string;
+  impact: string;
+  suggestion: string;
+  resolved: boolean;
+}
+
+export interface ContinuityReport {
+  score: number;
+  verdict: string;
+  analyzedAt: string;
+  anomalies: ContinuityAnomaly[];
+  strengths: string[];
 }
 
 export interface LocationItem {

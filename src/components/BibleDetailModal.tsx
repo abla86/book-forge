@@ -26,6 +26,7 @@ interface BibleDetailModalProps {
   onAddCharacter: (c: Character) => void;
   onAddLocation: (l: LocationItem) => void;
   onAddRule: (r: ContinuityRule) => void;
+  onOpenCharacterDevelopment?: (charId?: string) => void;
 }
 
 export function BibleDetailModal({
@@ -39,6 +40,7 @@ export function BibleDetailModal({
   onAddCharacter,
   onAddLocation,
   onAddRule,
+  onOpenCharacterDevelopment,
 }: BibleDetailModalProps) {
   if (!isOpen) return null;
 
@@ -333,42 +335,106 @@ export function BibleDetailModal({
 
           {/* Tab 1: Characters */}
           {tab === "characters" && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {characters.map((char) => (
-                <div
-                  key={char.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:border-indigo-300"
-                >
-                  <div className="flex items-start justify-between">
+            <div className="space-y-4">
+              {onOpenCharacterDevelopment && (
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-amber-50 border border-amber-200">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center font-bold">
+                      <Sparkles className="h-5 w-5 text-amber-600" />
+                    </div>
                     <div>
-                      <h3 className="text-lg font-black text-slate-900">{char.name}</h3>
-                      <div className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">
-                        {char.role}
+                      <h4 className="text-sm font-bold text-slate-900">
+                        Dyp Karakterutvikling & Psykologisk Profil
+                      </h4>
+                      <p className="text-xs text-slate-600">
+                        Spor indre og ytre motivasjoner, relasjonsspenninger og personlighetsforvandling per akt.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => onOpenCharacterDevelopment()}
+                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-xs"
+                  >
+                    Åpne karakterhub
+                  </Button>
+                </div>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {characters.map((char) => (
+                  <div
+                    key={char.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:border-indigo-300 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="text-lg font-black text-slate-900">{char.name}</h3>
+                          <div className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+                            {char.role}
+                          </div>
+                        </div>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                          {char.archetype}
+                        </span>
+                      </div>
+                      <p className="mt-2.5 text-sm text-slate-600 leading-relaxed">
+                        {char.background}
+                      </p>
+
+                      {/* Motivations & Conflicts if present */}
+                      {(char.motivationInternal || char.internalConflict) && (
+                        <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs space-y-1.5">
+                          {char.motivationInternal && (
+                            <div>
+                              <span className="font-bold text-amber-700">Indre drivkraft:</span>{" "}
+                              <span className="text-slate-700">{char.motivationInternal}</span>
+                            </div>
+                          )}
+                          {char.internalConflict && (
+                            <div>
+                              <span className="font-bold text-rose-700">Indre konflikt:</span>{" "}
+                              <span className="text-slate-700">{char.internalConflict}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 text-xs">
+                        <div>
+                          <span className="font-bold text-slate-800">Mål:</span>{" "}
+                          <span className="text-slate-600">{char.goal}</span>
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-800">Hemmelighet:</span>{" "}
+                          <span className="text-slate-600">{char.secrets}</span>
+                        </div>
+                        {char.relationships && char.relationships.length > 0 && (
+                          <div className="flex items-center gap-1.5 pt-1">
+                            <span className="font-bold text-slate-800">Relasjoner:</span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-indigo-50 text-indigo-700">
+                              {char.relationships.length} aktive relasjoner
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                      {char.archetype}
-                    </span>
+
+                    {onOpenCharacterDevelopment && (
+                      <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onOpenCharacterDevelopment(char.id)}
+                          className="text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-50 rounded-xl"
+                        >
+                          Rediger dyp profil & bue →
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  <p className="mt-3 text-sm text-slate-600 leading-relaxed">
-                    {char.background}
-                  </p>
-                  <div className="mt-4 space-y-2 border-t border-slate-100 pt-3 text-xs">
-                    <div>
-                      <span className="font-bold text-slate-800">Mål:</span>{" "}
-                      <span className="text-slate-600">{char.goal}</span>
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-800">Hemmelighet:</span>{" "}
-                      <span className="text-slate-600">{char.secrets}</span>
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-800">Stemme:</span>{" "}
-                      <span className="text-slate-600">{char.voice}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
 
