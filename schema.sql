@@ -153,3 +153,90 @@ VALUES (
   'SYSTEM'
 )
 ON CONFLICT (key) DO NOTHING;
+
+-- 9. Organizations (Multi-tenant Platform Hierarchy)
+CREATE TABLE IF NOT EXISTS organizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  tier TEXT NOT NULL DEFAULT 'STUDIO',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 10. Sessions (Secure Authentication)
+CREATE TABLE IF NOT EXISTS sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  token TEXT UNIQUE NOT NULL,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+-- 11. Generation Jobs (Full-Book Orchestration State & Checkpointing)
+CREATE TABLE IF NOT EXISTS generation_jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
+  phase TEXT NOT NULL DEFAULT 'specification',
+  total_chapters INTEGER NOT NULL DEFAULT 32,
+  completed_chapters INTEGER NOT NULL DEFAULT 0,
+  total_words INTEGER NOT NULL DEFAULT 80000,
+  generated_words INTEGER NOT NULL DEFAULT 0,
+  current_chapter INTEGER NOT NULL DEFAULT 1,
+  current_chapter_words INTEGER NOT NULL DEFAULT 0,
+  current_chapter_target INTEGER NOT NULL DEFAULT 2500,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ,
+  elapsed_ms BIGINT NOT NULL DEFAULT 0,
+  active_jobs INTEGER NOT NULL DEFAULT 0,
+  retrying INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  chapter_states JSONB NOT NULL DEFAULT '{}'::jsonb,
+  checkpoint JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gen_jobs_project ON generation_jobs(project_id);
+CREATE INDEX IF NOT EXISTS idx_gen_jobs_status ON generation_jobs(status);
+
+-- 12. Generation Chunks (Chunk-level Persistent Recovery)
+CREATE TABLE IF NOT EXISTS generation_chunks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id UUID NOT NULL REFERENCES generation_jobs(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+  chapter_number INTEGER NOT NULL,
+  chunk_index INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  word_count INTEGER NOT NULL DEFAULT 0,
+  tokens_used JSONB,
+  is_continuation BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(job_id, chapter_number, chunk_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_gen_chunks_job_chap ON generation_chunks(job_id, chapter_number);
+
+-- 13. Creative Assets (Cover Art, Illustrations, Visual Bible)
+CREATE TABLE IF NOT EXISTS creative_assets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('cover_front', 'cover_back', 'illustration', 'character_portrait', 'map')),
+  title TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  negative_prompt TEXT,
+  url TEXT,
+  svg_data TEXT,
+  aspect_ratio TEXT NOT NULL DEFAULT '1:1',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'ready', 'failed')),
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_creative_assets_project ON creative_assets(project_id);
+

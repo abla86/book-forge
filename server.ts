@@ -16,12 +16,14 @@ import {
   AuditLogger,
   RateLimiter,
   EmergencyKillSwitch,
+  SessionAuthService,
 } from "./src/lib/security";
 import { CostGuard } from "./src/lib/engine/CostGuard";
 import { BibleEngine } from "./src/lib/engine/BibleEngine";
 import { ContinuityAgent } from "./src/lib/engine/ContinuityAgent";
 import { VersionService } from "./src/lib/engine/VersionService";
 import { FullBookEngine } from "./src/lib/engine/FullBookEngine";
+import { AssetEngine } from "./src/lib/engine/AssetEngine";
 import { db } from "./src/lib/db";
 import { BookProject } from "./src/types";
 
@@ -80,14 +82,22 @@ function getAuthUser(req: Request): AuthUser {
 
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.substring(7).trim();
-    if (token.startsWith("token-")) {
+    // 1. Authoritative lookup in persistent session storage
+    const session = db.getSession(token);
+    if (session) {
+      const user = db.getUser(session.userId);
+      if (user) {
+        return user;
+      }
+      userId = session.userId;
+    } else if (token.startsWith("token-")) {
       userId = token.replace("token-", "");
     } else if (token) {
       userId = token;
     }
   }
 
-  // 1. Authoritative lookup in persistent DB
+  // 2. Authoritative lookup in persistent DB by ID
   if (userId) {
     const existing = db.getUser(userId);
     if (existing) {
@@ -97,11 +107,12 @@ function getAuthUser(req: Request): AuthUser {
         email: existing.email,
         role: existing.role,
         subscriptionPlan: existing.subscriptionPlan,
+        organizationId: existing.organizationId,
       };
     }
   }
 
-  // 2. Fallback header extraction with strict role validation
+  // 3. Fallback header extraction with strict role validation
   const roleHeader = (req.headers["x-user-role"] as string) || "FOUNDER";
   const validRoles: UserRole[] = ["FOUNDER", "ADMIN", "AUTHOR", "READER"];
   const role: UserRole = validRoles.includes(roleHeader as UserRole)
@@ -123,6 +134,87 @@ function getAuthUser(req: Request): AuthUser {
 
   return fallbackUser;
 }
+
+// ---------------------------------------------------------------------
+// AUTHENTICATION & SESSION MANAGEMENT
+// ---------------------------------------------------------------------
+app.post("/api/auth/login", (req, res) => {
+  const { email, role, name, organizationId } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "E-postadresse er påkrevd for innlogging." });
+  }
+
+  // Find user by email or create new
+  let user = db.getUsers().find((u) => u.email.toLowerCase() === email.toLowerCase());
+  if (!user) {
+    const newUserId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const assignedRole: UserRole = role || (email.includes("founder") ? "FOUNDER" : "AUTHOR");
+    user = {
+      id: newUserId,
+      name: name || email.split("@")[0],
+      email: email.toLowerCase(),
+      role: assignedRole,
+      subscriptionPlan: assignedRole === "FOUNDER" ? "STUDIO" : "PRO",
+      organizationId,
+    };
+    db.saveUser(user);
+  }
+
+  const { token, expiresAt } = SessionAuthService.generateSessionToken(user.id);
+  db.createSession(user.id, token, expiresAt);
+
+  AuditLogger.log({
+    actorId: user.id,
+    actorRole: user.role,
+    action: "USER_LOGIN",
+    status: "SUCCESS",
+    metadata: { email: user.email },
+  });
+
+  return res.json({
+    token,
+    expiresAt,
+    user,
+  });
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7).trim();
+    const session = db.getSession(token);
+    if (session) {
+      AuditLogger.log({
+        actorId: session.userId,
+        actorRole: "AUTHOR",
+        action: "USER_LOGOUT",
+        status: "SUCCESS",
+      });
+      db.deleteSession(token);
+    }
+  }
+  return res.json({ success: true });
+});
+
+app.get("/api/auth/me", (req, res) => {
+  const user = getAuthUser(req);
+  return res.json({ user });
+});
+
+// ---------------------------------------------------------------------
+// ORGANIZATIONS & TENANCY
+// ---------------------------------------------------------------------
+app.get("/api/organizations", (_req, res) => {
+  return res.json(db.getOrganizations());
+});
+
+app.get("/api/organizations/:id", (req, res) => {
+  const org = db.getOrganization(req.params.id);
+  if (!org) {
+    return res.status(404).json({ error: "Organisasjon ikke funnet." });
+  }
+  return res.json(org);
+});
 
 // ---------------------------------------------------------------------
 // Health & Platform Status
@@ -518,12 +610,93 @@ app.post("/api/book/generation/:jobId/cancel", (req, res) => {
   return res.json({ success, jobId: req.params.jobId });
 });
 
+// Resume a generation job from its persistent checkpoint
+app.post("/api/book/generation/:jobId/resume", async (req, res) => {
+  const user = getAuthUser(req);
+  const ai = getGeminiClient();
+  if (!ai) {
+    return res.status(503).json({
+      error: "AI-tjenesten krever konfigurert GEMINI_API_KEY for å gjenoppta genereringsjobb. Falsk simulering er deaktivert.",
+    });
+  }
+
+  try {
+    const job = await FullBookEngine.resumeJob(req.params.jobId, ai, user);
+    return res.json(job);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Kunne ikke gjenoppta genereringsjobb";
+    return res.status(500).json({ error: msg });
+  }
+});
+
 app.get("/api/book/generation/project/:projectId", (req, res) => {
   const job = db.getGenerationJobForProject(req.params.projectId);
   if (!job) {
     return res.status(404).json({ error: "Ingen genereringsjobb funnet for dette prosjektet." });
   }
   return res.json(job);
+});
+
+// ---------------------------------------------------------------------
+// CREATIVE ASSET GENERATION (Covers, Illustrations, Character Art)
+// ---------------------------------------------------------------------
+app.post("/api/assets/generate", async (req, res) => {
+  const user = getAuthUser(req);
+  const { projectId, type, title, customPrompt, chapterNumber, characterName, aspectRatio } = req.body;
+
+  if (!projectId || !type || !title) {
+    return res.status(400).json({ error: "Mangler påkrevde parametere (projectId, type, title)." });
+  }
+
+  const project = db.getProject(projectId);
+  if (!project) {
+    return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+  }
+
+  if (project.ownerId) {
+    const access = BookAccessControl.validateAccess(user, project.ownerId, "write");
+    if (!access.allowed) {
+      return res.status(403).json({ error: access.reason });
+    }
+  }
+
+  try {
+    const ai = getGeminiClient();
+    const assetEngine = AssetEngine.getInstance();
+    const asset = await assetEngine.generateAsset(
+      project,
+      { projectId, type, title, customPrompt, chapterNumber, characterName, aspectRatio },
+      ai,
+      user
+    );
+
+    AuditLogger.log({
+      actorId: user.id,
+      actorRole: user.role,
+      action: "GENERATE_ASSET",
+      projectId,
+      status: "SUCCESS",
+      metadata: { assetId: asset.id, type: asset.type, title: asset.title },
+    });
+
+    return res.json(asset);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Kunne ikke generere visuelt element.";
+    return res.status(500).json({ error: msg });
+  }
+});
+
+app.get("/api/assets/project/:projectId", (req, res) => {
+  const assets = db.getAssetsForProject(req.params.projectId);
+  return res.json(assets);
+});
+
+app.get("/api/assets/:id", (req, res) => {
+  const asset = db.getAsset(req.params.id);
+  if (!asset) {
+    return res.status(404).json({ error: "Visuelt element ikke funnet." });
+  }
+  return res.json(asset);
 });
 
 // ---------------------------------------------------------------------
@@ -588,27 +761,17 @@ app.post("/api/book/generate-synopsis", async (req, res) => {
 
     if (!ai) {
       RateLimiter.releaseJobSlot(user.id, jobId);
-      CostGuard.recordUsage({
-        userId: user.id,
-        projectId,
-        action: "GENERATE_SYNOPSIS",
-        inputTokens: 250,
-        outputTokens: 180,
-      });
       AuditLogger.log({
         actorId: user.id,
         actorRole: user.role,
         action: "GENERATE_SYNOPSIS",
         projectId,
-        status: "SUCCESS",
-        metadata: { title, genre, mode: "calibrated-fallback" },
+        status: "FAILURE",
+        errorMessage: "GEMINI_API_KEY er ikke konfigurert. Falsk simulering er deaktivert.",
       });
 
-      return res.json({
-        synopsis: `I et narrativ drevet av ${genre?.toLowerCase() || "romanens"} kjernekonflikter konfronteres hovedpersonen med hendelser som truer stabiliteten i universet. Med en tone preget av ${tone?.toLowerCase() || "filmatisk intensitet"}, må skjulte allianser og hemmeligheter avdekkes før avgjørende valg tvinger frem et ugjenkallelig oppgjør.`,
-        acts: 4,
-        pov: "1 (Tredjeperson begrenset)",
-        ending: "Lukket",
+      return res.status(503).json({
+        error: "AI-tjenesten krever en konfigurert GEMINI_API_KEY for å generere synopsis. Falsk simulering er deaktivert.",
       });
     }
 
@@ -754,35 +917,17 @@ app.post("/api/book/write-chapter", async (req, res) => {
     const ai = getGeminiClient();
     if (!ai) {
       RateLimiter.releaseJobSlot(user.id, jobId);
-      CostGuard.recordUsage({
-        userId: user.id,
-        projectId,
-        action: "WRITE_CHAPTER",
-        inputTokens: 1200,
-        outputTokens: 2400,
-      });
       AuditLogger.log({
         actorId: user.id,
         actorRole: user.role,
         action: "WRITE_CHAPTER",
         projectId,
-        status: "SUCCESS",
-        metadata: { chapterNumber, chapterTitle, mode: "calibrated-fallback" },
+        status: "FAILURE",
+        errorMessage: "GEMINI_API_KEY er ikke konfigurert. Simulering eller falsk fallback er deaktivert.",
       });
 
-      const lead = characters || "Hovedpersonen";
-      const fallbackProse =
-        `Kapittel ${chapterNumber}: ${chapterTitle}\n\n` +
-        `Stillheten senket seg over rommet idet ${lead} tok inn omgivelsene. ` +
-        `I denne ${genre?.toLowerCase() || "fortellingen"} lå det en uunngåelig spenning i luften, en fornemmelse av at hvert skritt fremover krevde en beslutning som ikke kunne omgjøres.\n\n` +
-        `${chapterSummary || "Scenen åpner med et avgjørende øyeblikk som setter hendelsene i bevegelse."}\n\n` +
-        `Med sansene skjerpet observerte ${lead} detaljene rundt seg. Tonen var ${tone?.toLowerCase() || "intens"}, ` +
-        `og hvert ord som ble utvekslet bar vekten av uuttalte forventninger. Da situasjonen krevde resolutt handling, fantes det ingen vei tilbake.`;
-
-      const words = fallbackProse.trim().split(/\s+/).length;
-      return res.json({
-        content: fallbackProse,
-        wordCount: words,
+      return res.status(503).json({
+        error: "AI-tjenesten krever en konfigurert GEMINI_API_KEY for ekte kapittelskriving. Falsk simulering er deaktivert.",
       });
     }
 
@@ -862,8 +1007,9 @@ app.post("/api/book/generate-character-journey", async (req, res) => {
     const ai = getGeminiClient();
 
     if (!ai) {
-      const fallbackSummary = `${character.name} gjennomgår en transformativ reise i «${bookTitle || "boken"}». Fra et opprinnelig utgangspunkt preget av ${character.internalConflict || "indre tvil"} og søken etter ${character.motivationInternal || "mening"}, konfronteres karakteren med ytre motstand (${character.externalConflict || "eksterne trusler"}). Gjennom relasjonene sine modnes karakteren gradvis, inntil det endelige oppgjøret tvinger frem en dyp personlighetsendring og en ny likevekt.`;
-      return res.json({ journeySummary: fallbackSummary });
+      return res.status(503).json({
+        error: "GEMINI_API_KEY er ikke konfigurert. Karakteranalyse krever en aktiv AI-forbindelse.",
+      });
     }
 
     const prompt = `Du er en prisvinnende forfattercoach og dramaturg for en ${genre || "skjønnlitterær"}-roman med ${tone || "filmisk"} tone.

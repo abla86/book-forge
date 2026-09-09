@@ -193,6 +193,74 @@ export class FullBookEngineService {
   }
 
   /**
+   * Resumes a generation job from its last saved persistent checkpoint.
+   */
+  public async resumeJob(
+    jobId: string,
+    aiClient: GoogleGenAI,
+    user: AuthUser
+  ): Promise<BookGenerationJob> {
+    const existingJob = db.getGenerationJob(jobId);
+    if (!existingJob) {
+      throw new Error(`Genereringsjobb ${jobId} finnes ikke i databasen.`);
+    }
+
+    const project = db.getProject(existingJob.projectId);
+    if (!project) {
+      throw new Error(`Prosjekt med ID ${existingJob.projectId} finnes ikke.`);
+    }
+
+    if (existingJob.status === "completed") {
+      return existingJob;
+    }
+
+    if (EmergencyKillSwitch.getState().active) {
+      throw new Error(`Kan ikke gjenoppta: Emergency Kill Switch er aktiv.`);
+    }
+
+    const resumedJob: BookGenerationJob = {
+      ...existingJob,
+      status: "running",
+      retrying: (existingJob.retrying || 0) + 1,
+      retryCount: (existingJob.retryCount || 0) + 1,
+    };
+
+    this.activeJobs.set(jobId, { cancelRequested: false, job: resumedJob });
+    db.saveGenerationJob(resumedJob);
+
+    AuditLogger.log({
+      actorId: user.id,
+      actorRole: user.role,
+      action: "BOOK_GENERATION_RESUMED",
+      status: "SUCCESS",
+      projectId: project.id,
+      metadata: { jobId, completedChapters: resumedJob.completedChapters, phase: resumedJob.phase },
+    });
+
+    // Run execution pipeline resuming from state
+    this.runGenerationPipeline(
+      jobId,
+      {
+        idea: project.idea,
+        title: project.title,
+        author: project.author,
+        genre: project.genre,
+        tone: project.tone,
+        pov: project.pov,
+        targetWords: project.targetWords,
+        targetChapters: project.targetChapters,
+        user,
+        projectId: project.id,
+      },
+      aiClient
+    ).catch((err) => {
+      console.error(`[FullBookEngine] Gjenopptatt jobb ${jobId} feilet:`, err);
+    });
+
+    return resumedJob;
+  }
+
+  /**
    * Background Execution Pipeline
    */
   private async runGenerationPipeline(
@@ -217,8 +285,15 @@ export class FullBookEngineService {
         throw new Error(`Prosjekt med ID ${projectId} ble ikke funnet i databasen.`);
       }
 
-      // Generate specification from user idea
-      const spec = await this.generateSpecification(params, aiClient, user);
+      // Check for existing checkpoint artifacts
+      const checkpoint = tracker.job.checkpoint;
+      let spec: BookSpecification;
+      if (checkpoint?.specification) {
+        spec = checkpoint.specification;
+      } else {
+        // Generate specification from user idea
+        spec = await this.generateSpecification(params, aiClient, user);
+      }
       if (tracker.cancelRequested) throw new Error("Generering avbrutt av bruker.");
 
       // Sync specification to project record
@@ -249,10 +324,13 @@ export class FullBookEngineService {
       // -------------------------------------------------------------
       // PHASE 2: Canonical Book Bible Generation
       // -------------------------------------------------------------
-      const bibleData = await this.generateCanonicalBible(spec, aiClient, user, projectId);
+      let bibleData = db.getBible(projectId);
+      if (!bibleData) {
+        bibleData = await this.generateCanonicalBible(spec, aiClient, user, projectId);
+        db.saveBible(projectId, bibleData);
+      }
       if (tracker.cancelRequested) throw new Error("Generering avbrutt av bruker.");
 
-      db.saveBible(projectId, bibleData);
       const bibleEngine = new BibleEngine(bibleData);
 
       // -------------------------------------------------------------
@@ -260,139 +338,182 @@ export class FullBookEngineService {
       // -------------------------------------------------------------
       this.updateJob(jobId, { phase: "blueprints", elapsedMs: Date.now() - startTime });
 
-      const blueprints = await this.generateChapterBlueprints(spec, bibleData, aiClient, user, projectId);
+      let blueprints: ChapterBlueprint[] = checkpoint?.blueprints || [];
+      if (blueprints.length === 0) {
+        blueprints = await this.generateChapterBlueprints(spec, bibleData, aiClient, user, projectId);
+      }
       if (tracker.cancelRequested) throw new Error("Generering avbrutt av bruker.");
 
-      // Initialize all planned chapters in project
-      const initializedChapters: Chapter[] = blueprints.map((bp) => ({
-        id: bp.number,
-        number: bp.number,
-        title: bp.title,
-        summary: bp.summary,
-        act: bp.act,
-        status: "planned",
-        wordTarget: bp.wordTarget,
-        currentWords: 0,
-        povCharacter: bp.pov,
-        conflict: bp.conflict,
-        continuityNotes: bp.continuityRequirements.join("; "),
-        content: "",
-      }));
+      // Initialize chapters in project if not already populated
+      if (!project.chapters || project.chapters.length === 0) {
+        const initializedChapters: Chapter[] = blueprints.map((bp) => ({
+          id: bp.number,
+          number: bp.number,
+          title: bp.title,
+          summary: bp.summary,
+          act: bp.act,
+          status: "planned",
+          wordTarget: bp.wordTarget,
+          currentWords: 0,
+          povCharacter: bp.pov,
+          conflict: bp.conflict,
+          continuityNotes: bp.continuityRequirements.join("; "),
+          content: "",
+        }));
 
-      project.chapters = initializedChapters;
-      db.saveProject(project);
+        project.chapters = initializedChapters;
+        db.saveProject(project);
 
-      VersionService.createSnapshot(
-        project,
-        `Komplett kapitteldisposisjon generert (${blueprints.length} kapitler)`,
-        user.id
-      );
+        VersionService.createSnapshot(
+          project,
+          `Komplett kapitteldisposisjon generert (${blueprints.length} kapitler)`,
+          user.id
+        );
+      }
 
       // -------------------------------------------------------------
-      // PHASE 4: Full Chapter Generation with Continuation Loop
+      // PHASE 4: Full Chapter Generation with Bounded Concurrency & Checkpointing
       // -------------------------------------------------------------
       this.updateJob(jobId, { phase: "writing", elapsedMs: Date.now() - startTime });
 
-      let completedCount = 0;
-      let totalGeneratedWords = 0;
+      let completedCount = project.chapters.filter((c) => c.status === "completed" && (c.currentWords || 0) > 200).length;
+      let totalGeneratedWords = project.chapters.reduce((sum, c) => sum + (c.currentWords || 0), 0);
 
-      for (let i = 0; i < blueprints.length; i++) {
+      const BATCH_SIZE = 3;
+      for (let b = 0; b < blueprints.length; b += BATCH_SIZE) {
         if (tracker.cancelRequested) {
           throw new Error("Generering avbrutt av bruker.");
         }
 
-        const bp = blueprints[i];
-        const prevChapter = i > 0 ? project.chapters[i - 1] : undefined;
+        const currentBatch = blueprints.slice(b, b + BATCH_SIZE);
+
+        // Update persistent checkpoint before executing batch
+        const completedChapterNumbers = project.chapters
+          .filter((c) => c.status === "completed" && (c.currentWords || 0) > 200)
+          .map((c) => c.number);
 
         this.updateJob(jobId, {
-          currentChapter: bp.number,
-          currentChapterTarget: bp.wordTarget,
+          checkpoint: {
+            phase: "writing",
+            lastSavedAt: new Date().toISOString(),
+            completedChapterNumbers,
+            nextBatchStart: b,
+            specification: spec,
+            blueprints,
+          },
           elapsedMs: Date.now() - startTime,
         });
 
-        // Set chapter state to writing
-        const chapterStates = tracker.job.chapterStates || {};
-        chapterStates[bp.number] = {
-          chapterNumber: bp.number,
-          status: "writing",
-          attempt: 1,
-          targetWords: bp.wordTarget,
-          currentWords: 0,
-          startedAt: new Date().toISOString(),
-        };
-        this.updateJob(jobId, { chapterStates });
+        // Concurrently run chapters in current batch
+        await Promise.all(
+          currentBatch.map(async (bp) => {
+            if (tracker.cancelRequested) return;
 
-        // Generate full prose with continuation loop
-        const { content, wordCount, continuityNotes } = await this.generateSingleChapterProse(
-          spec,
-          bp,
-          prevChapter,
-          bibleEngine,
-          aiClient,
-          user,
-          projectId,
-          (partialWords) => {
+            const i = bp.number - 1;
+            const existing = project.chapters[i];
+            if (
+              existing &&
+              existing.status === "completed" &&
+              (existing.currentWords || 0) >= 500 &&
+              existing.content &&
+              existing.content.length > 500
+            ) {
+              // Already completed in previous checkpoint
+              return;
+            }
+
+            const prevChapter = i > 0 ? project.chapters[i - 1] : undefined;
+
             this.updateJob(jobId, {
-              currentChapterWords: partialWords,
+              currentChapter: bp.number,
+              currentChapterTarget: bp.wordTarget,
               elapsedMs: Date.now() - startTime,
             });
-          }
+
+            // Set chapter state to writing
+            const chapterStates = tracker.job.chapterStates || {};
+            chapterStates[bp.number] = {
+              chapterNumber: bp.number,
+              status: "writing",
+              attempt: 1,
+              targetWords: bp.wordTarget,
+              currentWords: 0,
+              startedAt: new Date().toISOString(),
+            };
+            this.updateJob(jobId, { chapterStates });
+
+            // Generate full prose with continuation loop and persistent chunk saving
+            const { content, wordCount, continuityNotes } = await this.generateSingleChapterProse(
+              jobId,
+              spec,
+              bp,
+              prevChapter,
+              bibleEngine,
+              aiClient,
+              user,
+              projectId,
+              (partialWords) => {
+                this.updateJob(jobId, {
+                  currentChapterWords: partialWords,
+                  elapsedMs: Date.now() - startTime,
+                });
+              }
+            );
+
+            // Update chapter in project
+            project.chapters[i] = {
+              ...project.chapters[i],
+              title: bp.title,
+              summary: bp.summary,
+              status: "completed",
+              content,
+              currentWords: wordCount,
+              continuityNotes,
+            };
+
+            completedCount++;
+            totalGeneratedWords += wordCount;
+
+            // Mark chapter completed in job
+            chapterStates[bp.number] = {
+              chapterNumber: bp.number,
+              status: "completed",
+              attempt: 1,
+              targetWords: bp.wordTarget,
+              currentWords: wordCount,
+              startedAt: chapterStates[bp.number]?.startedAt,
+              completedAt: new Date().toISOString(),
+            };
+
+            project.currentWords = totalGeneratedWords;
+            project.progress = Math.min(99, Math.round((completedCount / blueprints.length) * 100));
+            db.saveProject(project);
+
+            this.updateJob(jobId, {
+              completedChapters: completedCount,
+              generatedWords: totalGeneratedWords,
+              currentChapterWords: wordCount,
+              chapterStates,
+              elapsedMs: Date.now() - startTime,
+            });
+
+            AuditLogger.log({
+              actorId: user.id,
+              actorRole: user.role,
+              action: "CHAPTER_COMPLETED",
+              status: "SUCCESS",
+              projectId,
+              metadata: { chapterNumber: bp.number, title: bp.title, wordCount, target: bp.wordTarget },
+            });
+          })
         );
 
-        // Update chapter in project
-        project.chapters[i] = {
-          ...project.chapters[i],
-          title: bp.title,
-          summary: bp.summary,
-          status: "completed",
-          content,
-          currentWords: wordCount,
-          continuityNotes,
-        };
-
-        completedCount++;
-        totalGeneratedWords += wordCount;
-
-        // Mark chapter completed in job
-        chapterStates[bp.number] = {
-          chapterNumber: bp.number,
-          status: "completed",
-          attempt: 1,
-          targetWords: bp.wordTarget,
-          currentWords: wordCount,
-          startedAt: chapterStates[bp.number]?.startedAt,
-          completedAt: new Date().toISOString(),
-        };
-
-        project.currentWords = totalGeneratedWords;
-        project.progress = Math.min(99, Math.round((completedCount / blueprints.length) * 100));
-        db.saveProject(project);
-
-        this.updateJob(jobId, {
-          completedChapters: completedCount,
-          generatedWords: totalGeneratedWords,
-          currentChapterWords: wordCount,
-          chapterStates,
-          elapsedMs: Date.now() - startTime,
-        });
-
-        AuditLogger.log({
-          actorId: user.id,
-          actorRole: user.role,
-          action: "CHAPTER_COMPLETED",
-          status: "SUCCESS",
-          projectId,
-          metadata: { chapterNumber: bp.number, title: bp.title, wordCount, target: bp.wordTarget },
-        });
-
-        // Take snapshot every 4 chapters
-        if (completedCount % 4 === 0 || completedCount === blueprints.length) {
-          VersionService.createSnapshot(
-            project,
-            `Generert til og med kapittel ${bp.number} (${totalGeneratedWords.toLocaleString("nb-NO")} ord)`,
-            user.id
-          );
-        }
+        // Take snapshot every batch
+        VersionService.createSnapshot(
+          project,
+          `Batch fullført: til kapittel ${Math.min(b + BATCH_SIZE, blueprints.length)} (${totalGeneratedWords.toLocaleString("nb-NO")} ord)`,
+          user.id
+        );
       }
 
       // -------------------------------------------------------------
@@ -619,27 +740,9 @@ Svar KUN med gyldig JSON. Ingen introduksjon eller avslutning.
         targetChapters: totalChapters,
         chapterTargets: parsed.chapterTargets || Array(totalChapters).fill(wordsPerChap),
       };
-    } catch {
-      // Safe fallback
-      return {
-        title: params.title || "Skyggenes arv",
-        author: params.author || user.name || "Forfatter",
-        originalIdea: params.idea,
-        genre: params.genre || "Psykologisk thriller",
-        subgenre: "Nordic Noir",
-        tone: params.tone || "Mørk, intens og realistisk",
-        audience: "Voksne lesere",
-        language: "Norsk (Bokmål)",
-        pov: params.pov || "Tredjeperson personlig",
-        targetWords: totalWords,
-        targetChapters: totalChapters,
-        acts: params.acts || 4,
-        synopsis: `I ${params.title || "romanen"} avdekkes lag på lag med hemmeligheter når uventede hendelser tvinger hovedpersonen til et oppgjør med fortiden.`,
-        themes: ["Sannhet vs. løgn", "Fortielse", "Moralske dilemmaer"],
-        setting: "Norge",
-        timePeriod: "Nåtid",
-        chapterTargets: Array(totalChapters).fill(wordsPerChap),
-      };
+    } catch (parseErr) {
+      console.error("[FullBookEngine] Kunne ikke parse AI-spesifikasjon som JSON:", parseErr, "Mottatt råtekst:", text);
+      throw new Error(`AI-spesifikasjonsgenerering feilet: Ugyldig format mottatt fra språkmodellen. Vennligst prøv igjen.`);
     }
   }
 
@@ -893,39 +996,14 @@ Returner KUN en JSON-array med objektene: [ { "number": ${start}, ... }, ... ]
 
       try {
         const parsed = JSON.parse(cleanJsonString(text)) as ChapterBlueprint[];
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           blueprints.push(...parsed);
+        } else {
+          throw new Error("Mottok tom eller ugyldig kapittelplan-array.");
         }
-      } catch (err) {
-        console.warn(`[FullBookEngine] Kunne ikke parse blueprint-batch ${start}-${end}, oppretter fallback-planer:`, err);
-        for (let num = start; num <= end; num++) {
-          const act = Math.min(4, Math.ceil((num / totalChapters) * 4));
-          blueprints.push({
-            number: num,
-            title: `Kapittel ${num}: Skrittet over terskelen`,
-            act,
-            purpose: `Eskalering av konflikten i akt ${act}`,
-            summary: `I kapittel ${num} intensiveres undersøkelsene idet nye spor fører handlingen dypere inn i historiens kjerne.`,
-            openingState: "Hovedpersonen ankommer åstedet i en tilstand av usikkerhet.",
-            endingState: "En overraskende oppdagelse endrer situasjonens alvor.",
-            scenes: [
-              "Scene 1: Ankomst og observasjon av omgivelsene",
-              "Scene 2: Konfrontasjon med en uventet kilde",
-              "Scene 3: Funn av en avgjørende gjenstand",
-              "Scene 4: Beslutning om neste handling",
-            ],
-            pov: spec.pov || "Hovedpersonen",
-            characters: ["Hovedpersonen"],
-            locations: ["Distriktet"],
-            conflict: "Tidsnød og motstridende opplysninger",
-            reveal: "Et skjult motiv avdekkes delvis",
-            emotionalMovement: "Fra engstelig forsiktighet til besluttsom beslutning",
-            plotThreadsAdvanced: ["Hovedmysteriet"],
-            foreshadowing: ["En detalj som peker frem mot klimaks"],
-            continuityRequirements: ["Bevar troverdighet og sanselig nærvær"],
-            wordTarget: wordsPerChap,
-          });
-        }
+      } catch (err: any) {
+        console.error(`[FullBookEngine] Kunne ikke parse blueprint-batch ${start}-${end}:`, err.message);
+        throw new Error(`Generering av kapittelplaner for kapittel ${start}-${end} feilet: Ugyldig format fra AI (${err.message}). Vennligst prøv igjen.`);
       }
     }
 
@@ -933,9 +1011,10 @@ Returner KUN en JSON-array med objektene: [ { "number": ${start}, ... }, ... ]
   }
 
   /**
-   * Phase 4: Single Chapter Prose Generation with Continuation Loop
+   * Phase 4: Single Chapter Prose Generation with Continuation Loop and Persistent Chunk-level Recovery
    */
   private async generateSingleChapterProse(
+    jobId: string,
     spec: BookSpecification,
     blueprint: ChapterBlueprint,
     previousChapter: Chapter | undefined,
@@ -948,23 +1027,34 @@ Returner KUN en JSON-array med objektene: [ { "number": ${start}, ... }, ... ]
     const targetWords = blueprint.wordTarget || Math.round(spec.targetWords / spec.targetChapters);
     const minAcceptableWords = Math.floor(targetWords * 0.85); // e.g. 2125 words for 2500 target
 
-    const bibleContext = bibleEngine.buildContextForChapter(blueprint.number, blueprint.pov);
+    // Check if chunks already exist in persistent storage for this chapter (crash recovery)
+    const existingChunks = db.getChunks(jobId, blueprint.number);
+    let currentProse = "";
+    let currentWordCount = 0;
 
-    let prevContext = "";
-    if (previousChapter && previousChapter.content) {
-      const prevTrimmed = previousChapter.content.trim();
-      const prevEnding = prevTrimmed.slice(Math.max(0, prevTrimmed.length - 1200));
-      prevContext = `
+    if (existingChunks.length > 0) {
+      console.log(`[FullBookEngine] Gjenoppretter kapittel ${blueprint.number} fra ${existingChunks.length} lagrede chunks...`);
+      currentProse = existingChunks.map((c) => c.content).join("\n\n");
+      currentWordCount = countWords(currentProse);
+      if (onProgressUpdate) onProgressUpdate(currentWordCount);
+    } else {
+      const bibleContext = bibleEngine.buildContextForChapter(blueprint.number, blueprint.pov);
+
+      let prevContext = "";
+      if (previousChapter && previousChapter.content) {
+        const prevTrimmed = previousChapter.content.trim();
+        const prevEnding = prevTrimmed.slice(Math.max(0, prevTrimmed.length - 1200));
+        prevContext = `
 FORRIGE KAPITTEL (Kapittel ${previousChapter.number}: ${previousChapter.title}):
 Sammendrag: ${previousChapter.summary}
 Siste avsnitt fra forrige kapittel:
 «...${prevEnding}»
 Sluttilstand fra forrige kapittel: Karakterene beveger seg direkte inn i handlingen for kapittel ${blueprint.number}.
 `;
-    }
+      }
 
-    // Step 1: Initial drafting
-    const initialPrompt = `
+      // Step 1: Initial drafting
+      const initialPrompt = `
 Du er en prisvinnende norsk skjønnlitterær forfatter.
 Skriv hele den fyldige, litterære teksten til KAPITTEL ${blueprint.number}: «${blueprint.title}» i romanen «${spec.title}».
 
@@ -1000,23 +1090,39 @@ FORFATTERINSTRUKSJONER (STRENGT KRAV TIL LENGDE OG KVALITET):
 Start kapittelet nå:
 `;
 
-    let { text: currentProse, inputTokens, outputTokens } = await this.callGeminiWithRetry(
-      aiClient,
-      "gemini-3.8-flash",
-      initialPrompt,
-      "Du er en anerkjent skjønnlitterær forfatter. Skriv kun ren, uforkortet romantekst på norsk."
-    );
+      const { text, inputTokens, outputTokens } = await this.callGeminiWithRetry(
+        aiClient,
+        "gemini-3.8-flash",
+        initialPrompt,
+        "Du er en anerkjent skjønnlitterær forfatter. Skriv kun ren, uforkortet romantekst på norsk."
+      );
 
-    CostGuard.recordUsage({
-      userId: user.id,
-      projectId,
-      action: `DRAFT_CHAPTER_${blueprint.number}_INITIAL`,
-      inputTokens,
-      outputTokens,
-    });
+      CostGuard.recordUsage({
+        userId: user.id,
+        projectId,
+        action: `DRAFT_CHAPTER_${blueprint.number}_INITIAL`,
+        inputTokens,
+        outputTokens,
+      });
 
-    let currentWordCount = countWords(currentProse);
-    if (onProgressUpdate) onProgressUpdate(currentWordCount);
+      currentProse = text;
+      currentWordCount = countWords(currentProse);
+      if (onProgressUpdate) onProgressUpdate(currentWordCount);
+
+      // Save initial chunk persistently
+      db.saveChunk({
+        id: `chunk_${jobId}_${blueprint.number}_0`,
+        jobId,
+        projectId,
+        chapterNumber: blueprint.number,
+        chunkIndex: 0,
+        content: currentProse,
+        wordCount: currentWordCount,
+        tokensUsed: { input: inputTokens, output: outputTokens },
+        isContinuation: false,
+        createdAt: new Date().toISOString(),
+      });
+    }
 
     // Step 2: Continuation Loop if length is below minimum acceptable words
     let continuationAttempts = 0;
@@ -1071,6 +1177,20 @@ Fortsett herfra:
       currentProse = `${currentProse.trim()}\n\n${contResult.text.trim()}`;
       currentWordCount = countWords(currentProse);
       if (onProgressUpdate) onProgressUpdate(currentWordCount);
+
+      // Save continuation chunk persistently
+      db.saveChunk({
+        id: `chunk_${jobId}_${blueprint.number}_${continuationAttempts}`,
+        jobId,
+        projectId,
+        chapterNumber: blueprint.number,
+        chunkIndex: continuationAttempts,
+        content: contResult.text.trim(),
+        wordCount: countWords(contResult.text),
+        tokensUsed: { input: contResult.inputTokens, output: contResult.outputTokens },
+        isContinuation: true,
+        createdAt: new Date().toISOString(),
+      });
     }
 
     // Step 3: Fast continuity check on this chapter

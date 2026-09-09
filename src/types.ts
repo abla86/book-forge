@@ -105,6 +105,45 @@ export interface ContinuityRule {
   verified: boolean;
 }
 
+export type ContentType = "BOOK" | "SCREENPLAY" | "SERIES" | "SHORT_STORY";
+
+export interface GenerationChunk {
+  id: string;
+  jobId: string;
+  projectId: string;
+  chapterNumber: number;
+  chunkIndex: number;
+  content: string;
+  wordCount: number;
+  tokensUsed?: { input: number; output: number };
+  isContinuation: boolean;
+  createdAt: string;
+}
+
+export interface CreativeAsset {
+  id: string;
+  projectId: string;
+  type: "cover_front" | "cover_back" | "illustration" | "character_portrait" | "map";
+  title: string;
+  prompt: string;
+  negativePrompt?: string;
+  url?: string;
+  svgData?: string;
+  aspectRatio: string;
+  status: "pending" | "ready" | "failed";
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface VisualBible {
+  artStyle: string;
+  colorPalette: string[];
+  lightingMood: string;
+  typographyFamily: string;
+  characterVisualGuidelines: Record<string, string>;
+  settingVisualGuidelines: Record<string, string>;
+}
+
 export interface BookCover {
   id: string;
   title: string;
@@ -114,10 +153,14 @@ export interface BookCover {
   style: string;
   badge: string;
   fontStyle: "cinzel" | "serif" | "modern";
+  assetId?: string;
+  imageUrl?: string;
+  prompt?: string;
 }
 
 export interface BookProject {
   id: string;
+  contentType?: ContentType;
   ownerId?: string;
   universeId?: string;
   title: string;
@@ -143,6 +186,8 @@ export interface BookProject {
   timeline: TimelineEvent[];
   continuityRules: ContinuityRule[];
   covers: BookCover[];
+  assets?: CreativeAsset[];
+  visualBible?: VisualBible;
   createdAt: string;
   updatedAt: string;
 }
@@ -221,4 +266,12 @@ export interface BookGenerationJob {
   retryCount: number;
   createdBy: string;
   chapterStates?: Record<number, ChapterGenerationState>;
+  checkpoint?: {
+    phase: string;
+    lastSavedAt: string;
+    completedChapterNumbers: number[];
+    nextBatchStart: number;
+    specification?: BookSpecification;
+    blueprints?: ChapterBlueprint[];
+  };
 }

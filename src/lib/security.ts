@@ -2,6 +2,8 @@
 // BookForge AI - Security, Access Control, Audit Logging & Rate Limiting
 // =====================================================================
 
+import crypto from "crypto";
+
 export type UserRole = "FOUNDER" | "ADMIN" | "AUTHOR" | "READER";
 
 export interface AuthUser {
@@ -10,6 +12,7 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   subscriptionPlan: "FREE" | "PRO" | "STUDIO" | "ENTERPRISE";
+  organizationId?: string;
 }
 
 export type SecurityAction =
@@ -32,7 +35,24 @@ export type SecurityAction =
   | "CHAPTER_COMPLETED"
   | "BOOK_GENERATION_COMPLETED"
   | "BOOK_GENERATION_CANCELLED"
-  | "BOOK_GENERATION_FAILED";
+  | "BOOK_GENERATION_RESUMED"
+  | "BOOK_GENERATION_FAILED"
+  | "GENERATE_ASSET"
+  | "USER_LOGIN"
+  | "USER_LOGOUT";
+
+export class SessionAuthService {
+  /**
+   * Generates a cryptographically strong session token.
+   */
+  static generateSessionToken(userId: string, hoursValid = 72): { token: string; expiresAt: string } {
+    const salt = crypto.randomBytes(24).toString("hex");
+    const payload = `${userId}:${Date.now()}:${salt}`;
+    const token = `bf_${crypto.createHash("sha256").update(payload).digest("hex")}`;
+    const expiresAt = new Date(Date.now() + hoursValid * 3600 * 1000).toISOString();
+    return { token, expiresAt };
+  }
+}
 
 export interface AuditLogEntry {
   id: string;
