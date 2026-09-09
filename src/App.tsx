@@ -123,7 +123,6 @@ export default function BookForgeAI() {
   const [progress, setProgress] = useState(project.progress);
   const [activeChapter, setActiveChapter] = useState(project.activeChapter);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-  const [isAutoWriting, setIsAutoWriting] = useState(false);
   const [selectedAct, setSelectedAct] = useState<number | "all">("all");
 
   // Autonomous Full-Book Engine State
@@ -1039,8 +1038,10 @@ export default function BookForgeAI() {
               {/* Chapters list */}
               <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredChapters.map((chap) => {
-                  const isDone = Boolean(chap.content);
-                  const isCurrent = chap.number === activeChapter && isAutoWriting;
+                  const isDone = Boolean(chap.content && chap.content.trim().length > 0);
+                  const isCurrent =
+                    (isGeneratingBook || generationJob?.status === "running") &&
+                    chap.number === (generationJob?.currentChapter || activeChapter);
 
                   return (
                     <Card
