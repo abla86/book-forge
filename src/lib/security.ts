@@ -187,14 +187,7 @@ class AuditLoggerService {
   private persistenceAdapter: AuditPersistenceAdapter | null = null;
 
   constructor() {
-    // Seed initial bootstrap log
-    this.log({
-      actorId: "system",
-      actorRole: "FOUNDER",
-      action: "CREATE_PROJECT",
-      status: "SUCCESS",
-      metadata: { note: "Security audit subsystem initialized." },
-    });
+    // Start with an empty audit stream. Initialization is not a user action.
   }
 
   setPersistenceAdapter(adapter: AuditPersistenceAdapter): void {
