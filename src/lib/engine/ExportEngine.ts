@@ -86,20 +86,32 @@ nav#toc li { margin: 0.5em 0; }
     <p class="no-indent"><strong>${escapeXml(project.title)}</strong></p>
     <p class="no-indent">Opphavsrett © 2026 ${escapeXml(project.author)}. Alle rettigheter forbeholdt.</p>
     <p class="no-indent">Utgitt via BookForge AI Studio.</p>
-    <p class="no-indent">ISBN: 978-82-99000-00-1 (e-bok)</p>
+    <p class="no-indent">ISBN: Ikke tildelt (Not assigned)</p>
     <p class="no-indent" style="margin-top: 2em;">${escapeXml(project.synopsis)}</p>
   </div>
 </body>
 </html>`;
     zip.file("OEBPS/colophon.xhtml", colophonHtml);
 
-    // 6. Chapters
+    // 6. Chapters (Clearly distinguishes WRITTEN from PLANNED)
     project.chapters.forEach((chap) => {
-      const paras = (chap.content || `[Kapittel ${chap.number}: ${chap.summary}]`)
-        .split("\n\n")
-        .filter(Boolean)
-        .map((p, idx) => `<p class="${idx === 0 ? "no-indent" : ""}">${escapeXml(p)}</p>`)
-        .join("\n");
+      const isWritten = Boolean(chap.content && chap.content.trim().length > 0);
+      let parasHtml = "";
+
+      if (isWritten) {
+        parasHtml = (chap.content || "")
+          .split("\n\n")
+          .filter(Boolean)
+          .map((p, idx) => `<p class="${idx === 0 ? "no-indent" : ""}">${escapeXml(p)}</p>`)
+          .join("\n");
+      } else {
+        parasHtml = `
+          <div style="margin: 2em 0; padding: 1em; border-left: 3px solid #94a3b8; background: #f8fafc; color: #475569; font-style: italic;">
+            <p class="no-indent"><strong>Status: Planlagt kapittel (ennå ikke forfattet)</strong></p>
+            <p class="no-indent">Disposisjon og handling: ${escapeXml(chap.summary || "Ingen disposisjon oppgitt.")}</p>
+          </div>
+        `;
+      }
 
       const chapHtml = `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
@@ -111,8 +123,8 @@ nav#toc li { margin: 0.5em 0; }
 <body>
   <div class="chapter">
     <h2 class="chapter-title">Kapittel ${chap.number}</h2>
-    <div class="chapter-sub">${escapeXml(chap.title)}</div>
-    ${paras}
+    <div class="chapter-sub">${escapeXml(chap.title)}${!isWritten ? " — (Planlagt)" : ""}</div>
+    ${parasHtml}
   </div>
 </body>
 </html>`;
@@ -333,18 +345,24 @@ nav#toc li { margin: 0.5em 0; }
   </w:r>
 </w:p>`;
 
-      const paragraphs = (chap.content || `[Kapittel ${chap.number}: ${chap.summary}]`)
-        .split("\n\n")
-        .filter(Boolean);
+      const isWritten = Boolean(chap.content && chap.content.trim().length > 0);
+      const paragraphs = isWritten
+        ? (chap.content || "").split("\n\n").filter(Boolean)
+        : [
+            `[Planlagt kapittel – ennå ikke forfattet]`,
+            `Disposisjon og sceneplan: ${chap.summary || "Ingen disposisjon oppgitt."}`,
+          ];
 
       paragraphs.forEach((p, idx) => {
         bodyXml += `
 <w:p>
   <w:pPr>
     <w:spacing w:line="480" w:lineRule="auto" w:after="120"/>
-    ${idx > 0 ? '<w:ind w:firstLine="720"/>' : ""}
+    ${idx > 0 && isWritten ? '<w:ind w:firstLine="720"/>' : ""}
+    ${!isWritten ? '<w:rPr><w:i/><w:color w:val="666666"/></w:rPr>' : ""}
   </w:pPr>
   <w:r>
+    ${!isWritten ? '<w:rPr><w:i/><w:color w:val="666666"/></w:rPr>' : ""}
     <w:t xml:space="preserve">${escapeXml(p)}</w:t>
   </w:r>
 </w:p>`;
@@ -463,6 +481,14 @@ nav#toc li { margin: 0.5em 0; }
       color: rgb(0.4, 0.4, 0.4),
     });
 
+    colophonPage.drawText("ISBN: Ikke tildelt (Not assigned)", {
+      x: margin,
+      y: pageHeight - margin - 90,
+      size: 10,
+      font: timesRoman,
+      color: rgb(0.4, 0.4, 0.4),
+    });
+
     // Innholdsfortegnelse header
     colophonPage.drawText("INNHOLDSFORTEGNELSE", {
       x: margin,
@@ -498,7 +524,10 @@ nav#toc li { margin: 0.5em 0; }
         color: rgb(0.3, 0.3, 0.7),
       });
 
-      currentPage.drawText(chap.title, {
+      const isWritten = Boolean(chap.content && chap.content.trim().length > 0);
+      const titleDisplay = isWritten ? chap.title : `${chap.title} (Planlagt)`;
+
+      currentPage.drawText(titleDisplay, {
         x: margin,
         y: pageHeight - margin - 45,
         size: 18,
@@ -507,8 +536,12 @@ nav#toc li { margin: 0.5em 0; }
       });
 
       let cursorY = pageHeight - margin - 90;
-      const text = chap.content || `[Kapittel ${chap.number}: ${chap.summary}]`;
-      const paragraphs = text.split("\n\n").filter(Boolean);
+      const paragraphs = isWritten
+        ? (chap.content || "").split("\n\n").filter(Boolean)
+        : [
+            `[Status: Planlagt kapittel – ennå ikke forfattet i manus]`,
+            `Disposisjon og sceneplan: ${chap.summary || "Ingen disposisjon oppgitt."}`,
+          ];
 
       for (const p of paragraphs) {
         const words = p.split(/\s+/);

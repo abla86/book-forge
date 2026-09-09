@@ -106,6 +106,16 @@ export class BookAccessControl {
   }
 }
 
+export interface AuditPersistenceAdapter {
+  saveAuditLog(entry: AuditLogEntry): void;
+  getAuditLogs(limit?: number, filterAction?: string): AuditLogEntry[];
+}
+
+export interface KillSwitchPersistenceAdapter {
+  getKillSwitchState(): KillSwitchState;
+  setKillSwitchState(state: KillSwitchState, actorName: string): void;
+}
+
 /**
  * 2. AuditLogger
  * Persistent in-memory and dispatchable log stream for all security events.
@@ -113,6 +123,7 @@ export class BookAccessControl {
 class AuditLoggerService {
   private logs: AuditLogEntry[] = [];
   private maxLogs = 500;
+  private persistenceAdapter: AuditPersistenceAdapter | null = null;
 
   constructor() {
     // Seed initial bootstrap log
@@ -123,6 +134,19 @@ class AuditLoggerService {
       status: "SUCCESS",
       metadata: { note: "Security audit subsystem initialized." },
     });
+  }
+
+  setPersistenceAdapter(adapter: AuditPersistenceAdapter): void {
+    this.persistenceAdapter = adapter;
+    // Pre-populate with recent logs from persistence if available
+    try {
+      const persisted = adapter.getAuditLogs(100);
+      if (persisted && persisted.length > 0) {
+        this.logs = persisted;
+      }
+    } catch {
+      // Ignore if adapter fails during initial hookup
+    }
   }
 
   log(params: {
@@ -146,10 +170,29 @@ class AuditLoggerService {
       this.logs = this.logs.slice(0, this.maxLogs);
     }
 
+    if (this.persistenceAdapter) {
+      try {
+        this.persistenceAdapter.saveAuditLog(entry);
+      } catch (err) {
+        console.error("[AuditLogger] Failed to persist log entry:", err);
+      }
+    }
+
     return entry;
   }
 
   getRecentLogs(limit = 50, filterAction?: SecurityAction): AuditLogEntry[] {
+    if (this.persistenceAdapter) {
+      try {
+        const persisted = this.persistenceAdapter.getAuditLogs(limit, filterAction);
+        if (persisted && persisted.length > 0) {
+          return persisted;
+        }
+      } catch {
+        // Fallback to in-memory
+      }
+    }
+
     if (filterAction) {
       return this.logs.filter((l) => l.action === filterAction).slice(0, limit);
     }
@@ -276,8 +319,31 @@ class EmergencyKillSwitchService {
   private state: KillSwitchState = {
     active: false,
   };
+  private persistenceAdapter: KillSwitchPersistenceAdapter | null = null;
+
+  setPersistenceAdapter(adapter: KillSwitchPersistenceAdapter): void {
+    this.persistenceAdapter = adapter;
+    try {
+      const persisted = adapter.getKillSwitchState();
+      if (persisted && typeof persisted.active === "boolean") {
+        this.state = persisted;
+      }
+    } catch (err) {
+      console.error("[EmergencyKillSwitch] Failed to load persisted state:", err);
+    }
+  }
 
   getState(): KillSwitchState {
+    if (this.persistenceAdapter) {
+      try {
+        const persisted = this.persistenceAdapter.getKillSwitchState();
+        if (persisted && typeof persisted.active === "boolean") {
+          this.state = persisted;
+        }
+      } catch {
+        // Fallback to memory
+      }
+    }
     return { ...this.state };
   }
 
@@ -293,6 +359,14 @@ class EmergencyKillSwitchService {
       activatedBy: active ? user.name : undefined,
       activatedAt: active ? new Date().toISOString() : undefined,
     };
+
+    if (this.persistenceAdapter) {
+      try {
+        this.persistenceAdapter.setKillSwitchState(this.state, user.name);
+      } catch (err) {
+        console.error("[EmergencyKillSwitch] Failed to persist state:", err);
+      }
+    }
 
     AuditLogger.log({
       actorId: user.id,

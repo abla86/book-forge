@@ -1,5 +1,6 @@
 // =====================================================================
 // BookForge AI - BibleEngine (Canonical Story Knowledge Engine)
+// Generic, Lore-Agnostic, and Fully Project-Driven
 // =====================================================================
 
 import {
@@ -39,50 +40,26 @@ export interface CanonicalBibleData {
   foreshadowing: ForeshadowingItem[];
 }
 
+export interface BibleEngineInput extends Partial<BookProject> {
+  plotThreads?: PlotThread[];
+  foreshadowing?: ForeshadowingItem[];
+}
+
 export class BibleEngine {
   private data: CanonicalBibleData;
 
-  constructor(project: Partial<BookProject>) {
+  constructor(project: BibleEngineInput = {}) {
     this.data = {
       bookTitle: project.title || "Uten tittel",
       genre: project.genre || "Roman",
-      tone: project.tone || "Filmisk",
-      characters: project.characters || [],
-      locations: project.locations || [],
-      timeline: project.timeline || [],
-      continuityRules: project.continuityRules || [],
-      plotThreads: [
-        {
-          id: "thread-1",
-          title: "Miras messingnøkkel og den underjordiske porten",
-          introducedInChapter: 1,
-          status: "open",
-          notes: "Nøkkelen reagerer magnetisk på slusene under Bergen.",
-        },
-        {
-          id: "thread-2",
-          title: "Elias Bergs hemmelige oppdragsgiver",
-          introducedInChapter: 3,
-          status: "open",
-          notes: "Elias bærer en forseglet pakt fra forrige århundre.",
-        },
-      ],
-      foreshadowing: [
-        {
-          id: "fore-1",
-          clue: "Støvete timeglass der sanden virvler oppover",
-          placedInChapter: 1,
-          payoffChapter: 28,
-          resolved: false,
-        },
-        {
-          id: "fore-2",
-          clue: "Ankertatoveringen på Elias' underarm",
-          placedInChapter: 3,
-          payoffChapter: 16,
-          resolved: false,
-        },
-      ],
+      tone: project.tone || "Nøytral",
+      characters: project.characters ? [...project.characters] : [],
+      locations: project.locations ? [...project.locations] : [],
+      timeline: project.timeline ? [...project.timeline] : [],
+      continuityRules: project.continuityRules ? [...project.continuityRules] : [],
+      // Strictly project-driven; no hardcoded demo lore injected into books
+      plotThreads: project.plotThreads ? [...project.plotThreads] : [],
+      foreshadowing: project.foreshadowing ? [...project.foreshadowing] : [],
     };
   }
 
@@ -92,12 +69,14 @@ export class BibleEngine {
 
   // Character operations
   getCharacters(): Character[] {
-    return this.data.characters;
+    return [...this.data.characters];
   }
 
   getCharacterByName(name: string): Character | undefined {
+    if (!name) return undefined;
+    const clean = name.trim().toLowerCase();
     return this.data.characters.find(
-      (c) => c.name.toLowerCase() === name.toLowerCase()
+      (c) => c.name.toLowerCase() === clean || c.name.toLowerCase().includes(clean)
     );
   }
 
@@ -112,7 +91,7 @@ export class BibleEngine {
 
   // Location operations
   getLocations(): LocationItem[] {
-    return this.data.locations;
+    return [...this.data.locations];
   }
 
   addOrUpdateLocation(loc: LocationItem): void {
@@ -126,7 +105,7 @@ export class BibleEngine {
 
   // Timeline operations
   getTimeline(): TimelineEvent[] {
-    return this.data.timeline;
+    return [...this.data.timeline];
   }
 
   addTimelineEvent(event: TimelineEvent): void {
@@ -135,7 +114,7 @@ export class BibleEngine {
 
   // Continuity rules
   getRules(): ContinuityRule[] {
-    return this.data.continuityRules;
+    return [...this.data.continuityRules];
   }
 
   addRule(rule: ContinuityRule): void {
@@ -145,6 +124,10 @@ export class BibleEngine {
   // Plot threads
   getOpenPlotThreads(): PlotThread[] {
     return this.data.plotThreads.filter((t) => t.status === "open");
+  }
+
+  getAllPlotThreads(): PlotThread[] {
+    return [...this.data.plotThreads];
   }
 
   addPlotThread(thread: PlotThread): void {
@@ -159,6 +142,23 @@ export class BibleEngine {
     }
   }
 
+  // Foreshadowing operations
+  getForeshadowing(): ForeshadowingItem[] {
+    return [...this.data.foreshadowing];
+  }
+
+  addForeshadowing(item: ForeshadowingItem): void {
+    this.data.foreshadowing.push(item);
+  }
+
+  resolveForeshadowing(itemId: string, payoffChapter: number): void {
+    const item = this.data.foreshadowing.find((x) => x.id === itemId);
+    if (item) {
+      item.resolved = true;
+      item.payoffChapter = payoffChapter;
+    }
+  }
+
   /**
    * Generates a context package injected into AI prompts when drafting a specific chapter.
    */
@@ -166,16 +166,23 @@ export class BibleEngine {
     const povChar = povName ? this.getCharacterByName(povName) : undefined;
     const openThreads = this.getOpenPlotThreads().map((t) => `- ${t.title}: ${t.notes}`).join("\n");
     const activeRules = this.data.continuityRules.map((r) => `- [${r.category}] ${r.rule}`).join("\n");
+    const keyLocations = this.data.locations
+      .map((l) => `- ${l.name} (${l.type}): ${l.atmosphere || l.notableEvents || l.geography}`)
+      .join("\n");
 
     let text = `=== BOKBIBEL KONTEKST FOR KAPITTEL ${chapterNumber} ===\n`;
     text += `TITTEL: ${this.data.bookTitle} (${this.data.genre}, ${this.data.tone})\n\n`;
 
     if (povChar) {
-      text += `HOVEDKARAKTER: ${povChar.name} (${povChar.role})\n`;
+      text += `SYNSVINKELKARAKTER (POV): ${povChar.name} (${povChar.role})\n`;
       text += `MÅL: ${povChar.goal}\n`;
-      text += `INDRE MOTIVASJON: ${povChar.motivationInternal || "Uavklart"}\n`;
-      text += `INDRE KONFLIKT: ${povChar.internalConflict || "Uavklart"}\n`;
-      text += `HEMMELIGHET: ${povChar.secrets}\n\n`;
+      if (povChar.motivationInternal) text += `INDRE MOTIVASJON: ${povChar.motivationInternal}\n`;
+      if (povChar.internalConflict) text += `INDRE KONFLIKT: ${povChar.internalConflict}\n`;
+      if (povChar.secrets) text += `HEMMELIGHET: ${povChar.secrets}\n\n`;
+    }
+
+    if (keyLocations) {
+      text += `SENTRALE LOKASJONER:\n${keyLocations}\n\n`;
     }
 
     text += `AKTIVE KONTINUITETSREGLER:\n${activeRules || "Ingen eksplisitte regler satt."}\n\n`;

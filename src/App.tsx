@@ -142,6 +142,60 @@ export default function BookForgeAI() {
   const [continuityNotice, setContinuityNotice] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("studio");
 
+  // Projects list loaded from backend DB
+  const [projects, setProjects] = useState<BookProject[]>([initialProject]);
+
+  function applyProject(p: BookProject) {
+    setProject(p);
+    setTitle(p.title);
+    setIdea(p.idea);
+    setGenre(p.genre);
+    setTone(p.tone);
+    setLength(p.lengthLabel || "Full roman");
+    setCoverStyle(p.coverStyle || "Malerisk");
+    setAuthorName(p.author);
+    setPhase(p.phase || "setup");
+    setProgress(p.progress || 0);
+    setActiveChapter(p.activeChapter || 0);
+  }
+
+  // Load books from database API on mount or user switch
+  useEffect(() => {
+    async function loadBooks() {
+      try {
+        const res = await fetch("/api/books", {
+          headers: {
+            "x-user-id": currentUser.id,
+            "x-user-role": currentUser.role,
+          },
+        });
+        if (res.ok) {
+          const list: BookProject[] = await res.json();
+          if (list.length > 0) {
+            setProjects(list);
+            const found = list.find((b) => b.id === project.id) || list[0];
+            applyProject(found);
+          } else {
+            // Seed DB with initial book
+            await fetch("/api/books", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-user-id": currentUser.id,
+                "x-user-role": currentUser.role,
+              },
+              body: JSON.stringify(initialProject),
+            });
+            setProjects([initialProject]);
+          }
+        }
+      } catch (err) {
+        console.warn("Error fetching projects from API:", err);
+      }
+    }
+    loadBooks();
+  }, [currentUser.id, currentUser.role]);
+
   // Check Kill Switch status on mount
   useEffect(() => {
     async function checkKillSwitch() {
@@ -164,8 +218,11 @@ export default function BookForgeAI() {
   );
 
   const synopsis = useMemo(() => {
-    return `Når ${title.toLowerCase()} begynner å trekke Mira tilbake mot familiens fortid, oppdager hun at huset hun har arvet skjuler inngangen til et rike som ble slettet fra historien. Sammen med en historiker som bærer på egne hemmeligheter må hun tyde kart, løgner og gamle løfter før kreftene under byen våkner. Valget hun til slutt står overfor kan redde begge verdener, men koste henne den eneste familien hun har igjen.`;
-  }, [title]);
+    if (project.synopsis && project.synopsis.trim().length > 30) {
+      return project.synopsis;
+    }
+    return `I «${title}» (${genre}, ${tone}) tvinges hovedpersonen ut på en reise der uventede avsløringer snur opp ned på alt. Gjennom intense konfrontasjoner og etablering av nye allianser må skjulte hemmeligheter avdekkes før avgjørende valg besegler romanens skjebne.`;
+  }, [project.synopsis, title, genre, tone]);
 
   // Sync length changes to chapter list
   const displayChapters = useMemo(() => {
@@ -272,24 +329,44 @@ export default function BookForgeAI() {
     setProgress(100);
     setActiveChapter(selectedLength.chapters);
 
+    const updatedChapters = displayChapters.map((c) => ({
+      ...c,
+      status: "completed" as const,
+      currentWords: c.currentWords || c.wordTarget,
+      content:
+        c.content ||
+        `Kapittel ${c.number}: ${c.title}\n\n` +
+        `Stillheten senket seg over scenen idet hendelsene i «${title}» nådde sitt vendepunkt. ` +
+        `I denne ${genre.toLowerCase()}-fortellingen lå det en uunngåelig nerve i luften, en fornemmelse av at hvert skritt fremover krevde en beslutning som ikke kunne omgjøres.\n\n` +
+        `${c.summary}\n\n` +
+        `Med sansene skjerpet observerte hovedpersonen detaljene rundt seg. Tonen var ${tone.toLowerCase()}, ` +
+        `og hvert ord som ble utvekslet bar vekten av uuttalte forventninger. Da situasjonen krevde resolutt handling, fantes det ingen vei tilbake.`,
+    }));
+
     const updatedProject: BookProject = {
       ...project,
+      title,
+      genre,
+      tone,
+      synopsis,
+      author: authorName,
       phase: "complete",
       progress: 100,
-      chapters: project.chapters.map((c) => ({
-        ...c,
-        status: "completed",
-        currentWords: c.currentWords || c.wordTarget,
-        content:
-          c.content ||
-          `Kapittel ${c.number}: ${c.title}\n\n` +
-          `Vannet som sildret nedover de mørke basaltveggene, reflekterte lyset fra Miras lykt i kalde, safirblå glimt. Hvert skritt hun tok på de nedsunkne steinhellene under Bergen, vekket en resonans som ga gjenlyd i fjellet over dem.\n\n` +
-          `${c.summary}\n\n` +
-          `Elias stanset opp og la hånden på skulderen hennes. «Vi er over punktet der det går an å snu,» sa han lavt. Mira nikket langsomt. Hun kjente tyngden av messingnøkkelen mot brystet, og for første gang på uker var ikke frykten lammende — den var skjerpet, ren og målrettet. Byen der oppe sov videre under regnet, uvitende om at grunnvollene holdt på å skifte form.`,
-      })),
+      chapters: updatedChapters,
     };
 
     setProject(updatedProject);
+
+    // Auto-persist to database API
+    fetch(`/api/books/${updatedProject.id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": currentUser.id,
+        "x-user-role": currentUser.role,
+      },
+      body: JSON.stringify(updatedProject),
+    }).catch((err) => console.warn("Could not persist completed project:", err));
 
     // Save final version snapshot
     VersionService.createSnapshot(
@@ -1262,44 +1339,131 @@ export default function BookForgeAI() {
         isOpen={isLibraryOpen}
         onClose={() => setIsLibraryOpen(false)}
         currentProjectId={project.id}
+        projects={projects}
         onSelectProject={(pId) => {
-          if (pId === "book-riket-under-regnet") {
-            setProject(initialProject);
-            setTitle(initialProject.title);
-            setIdea(initialProject.idea);
-            setGenre(initialProject.genre);
-            setTone(initialProject.tone);
-            setLength(initialProject.lengthLabel);
-            setPhase(initialProject.phase);
-            setProgress(initialProject.progress);
-            setActiveChapter(initialProject.activeChapter);
-          } else if (pId === "book-svalbard") {
-            setTitle("Skygger over Svalbard");
-            setIdea("Under mørketiden i Longyearbyen forsvinner en forsker fra den globale frøhvelvet.");
-            setGenre("Krim");
-            setTone("Mørk og intens");
-            setLength("Kortroman");
-            setPhase("writing");
-            setProgress(60);
-            setActiveChapter(12);
-          } else if (pId === "book-andoya") {
-            setTitle("Stjernestøv fra Andøya");
-            setIdea("Norges første dype romteleskop fanger opp et signal som bryter de kjente naturlovene.");
-            setGenre("Science fiction");
-            setTone("Episk");
-            setLength("Episk roman");
-            setPhase("setup");
-            setProgress(5);
-            setActiveChapter(2);
+          const found = projects.find((b) => b.id === pId);
+          if (found) {
+            applyProject(found);
           }
         }}
-        onNewProject={(newTitle, newGenre, newIdea) => {
-          setTitle(newTitle);
-          setGenre(newGenre);
-          setIdea(newIdea);
-          setPhase("setup");
-          setProgress(0);
-          setActiveChapter(0);
+        onNewProject={async (newTitle, newGenre, newIdea, newTone = "Filmisk") => {
+          const newBook: BookProject = {
+            id: `book-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+            title: newTitle,
+            idea: newIdea,
+            genre: newGenre,
+            tone: newTone,
+            lengthLabel: "Full roman",
+            targetWords: 80000,
+            targetChapters: 32,
+            acts: 4,
+            pov: "Tredjeperson begrenset",
+            ending: "Lukket",
+            coverStyle: "Malerisk",
+            author: authorName,
+            ownerId: currentUser.id,
+            phase: "setup",
+            progress: 0,
+            activeChapter: 0,
+            synopsis: "",
+            covers: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            chapters: defaultChapters32.map((c) => ({
+              ...c,
+              title: `Kapittel ${c.number}: ${newTitle} del ${c.number}`,
+              summary: `Innledende skisse for kapittel ${c.number}.`,
+              content: "",
+              currentWords: 0,
+              status: "planned",
+            })),
+            characters: [
+              {
+                id: "char-main-1",
+                name: "Hovedperson",
+                role: "Hovedperson",
+                archetype: "Søkende",
+                goal: "Finne sannheten og overvinne hindringene",
+                background: `Startpunkt for ${newTitle}`,
+                voice: "Målrettet og sanselig",
+                secrets: "En ufortalt hendelse fra fortiden",
+                arc: "Fra usikkerhet til myndiggjøring",
+              },
+            ],
+            locations: [
+              {
+                id: "loc-1",
+                name: "Sentralt skueplass",
+                type: "Hovedarena",
+                atmosphere: `Fremtredende stemning for ${newGenre} (${newTone})`,
+                geography: "Historisk knutepunkt",
+                history: "Hovedlokasjon",
+                rules: "Følger universets standard lover",
+                notableEvents: "Historiske oppgjør",
+              },
+            ],
+            timeline: [
+              {
+                id: "time-1",
+                timeframe: "Dag 1",
+                title: "Åpning",
+                description: "Historien tar til.",
+                plotThreads: "Hovedplott",
+                verified: true,
+              },
+            ],
+            continuityRules: [
+              {
+                id: "rule-1",
+                category: "Verden",
+                rule: `Handlingene skal harmonere med ${newGenre} og ${newTone} tone.`,
+                verified: true,
+              },
+            ],
+          };
+
+          try {
+            const res = await fetch("/api/books", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-user-id": currentUser.id,
+                "x-user-role": currentUser.role,
+              },
+              body: JSON.stringify(newBook),
+            });
+            if (res.ok) {
+              const saved = await res.json();
+              setProjects((prev) => [saved, ...prev.filter((p) => p.id !== saved.id)]);
+              applyProject(saved);
+              return;
+            }
+          } catch (err) {
+            console.warn("Could not save new book to DB:", err);
+          }
+
+          setProjects((prev) => [newBook, ...prev]);
+          applyProject(newBook);
+        }}
+        onDeleteProject={async (pId) => {
+          try {
+            await fetch(`/api/books/${pId}`, {
+              method: "DELETE",
+              headers: {
+                "x-user-id": currentUser.id,
+                "x-user-role": currentUser.role,
+              },
+            });
+            setProjects((prev) => prev.filter((b) => b.id !== pId));
+            if (project.id === pId) {
+              const remaining = projects.filter((b) => b.id !== pId);
+              if (remaining.length > 0) {
+                applyProject(remaining[0]);
+              }
+            }
+          } catch (err) {
+            console.error("Could not delete book:", err);
+          }
         }}
       />
 

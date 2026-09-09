@@ -14,12 +14,18 @@ export interface CostRecord {
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
+  isEstimated: boolean;
 }
 
 export interface BudgetConfig {
   maxBudgetUsdPerBook: number;
   dailyPlatformBudgetUsd: number;
   warningThresholdPercent: number;
+}
+
+export interface CostPersistenceAdapter {
+  saveCostRecord(record: CostRecord): void;
+  getCostRecords(): CostRecord[];
 }
 
 class CostGuardService {
@@ -30,27 +36,27 @@ class CostGuardService {
   };
 
   private records: CostRecord[] = [];
+  private persistenceAdapter: CostPersistenceAdapter | null = null;
 
   // Gemini 3.8 Flash pricing estimate (USD per million tokens)
   private readonly inputCostPerMillion = 0.15;
   private readonly outputCostPerMillion = 0.60;
 
   constructor() {
-    // Initialize with baseline demo usage for realistic dashboard metrics
-    this.recordUsage({
-      userId: "user-founder-1",
-      projectId: "book-riket-under-regnet",
-      action: "GENERATE_PLAN",
-      inputTokens: 3200,
-      outputTokens: 4800,
-    });
-    this.recordUsage({
-      userId: "user-founder-1",
-      projectId: "book-riket-under-regnet",
-      action: "WRITE_CHAPTER",
-      inputTokens: 1800,
-      outputTokens: 2550,
-    });
+    // Zero hardcoded demo usage. System starts cleanly.
+    this.records = [];
+  }
+
+  setPersistenceAdapter(adapter: CostPersistenceAdapter): void {
+    this.persistenceAdapter = adapter;
+    try {
+      const persisted = adapter.getCostRecords();
+      if (persisted && persisted.length > 0) {
+        this.records = persisted;
+      }
+    } catch (err) {
+      console.error("[CostGuard] Failed to load persisted cost records:", err);
+    }
   }
 
   /**
@@ -72,6 +78,7 @@ class CostGuardService {
     model?: string;
     inputTokens: number;
     outputTokens: number;
+    isEstimated?: boolean;
   }): CostRecord {
     const costUsd = this.calculateCost(params.inputTokens, params.outputTokens);
     const record: CostRecord = {
@@ -84,9 +91,19 @@ class CostGuardService {
       inputTokens: params.inputTokens,
       outputTokens: params.outputTokens,
       costUsd,
+      isEstimated: params.isEstimated ?? true,
     };
 
     this.records.push(record);
+
+    if (this.persistenceAdapter) {
+      try {
+        this.persistenceAdapter.saveCostRecord(record);
+      } catch (err) {
+        console.error("[CostGuard] Failed to persist cost record:", err);
+      }
+    }
+
     return record;
   }
 
@@ -141,6 +158,10 @@ class CostGuardService {
 
   getRecentRecords(limit = 20): CostRecord[] {
     return this.records.slice(-limit).reverse();
+  }
+
+  clearRecords(): void {
+    this.records = [];
   }
 }
 

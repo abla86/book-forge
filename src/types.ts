@@ -61,11 +61,21 @@ export interface ContinuityAnomaly {
 }
 
 export interface ContinuityReport {
-  score: number;
+  score: number | null;
+  status?: "complete" | "insufficient_data";
+  analysisType?: "rule_based" | "ai_assisted";
   verdict: string;
   analyzedAt: string;
   anomalies: ContinuityAnomaly[];
   strengths: string[];
+  metrics?: {
+    chaptersAnalyzed: number;
+    writtenChaptersCount: number;
+    totalWords: number;
+    criticalAnomalies: number;
+    moderateAnomalies: number;
+    minorAnomalies: number;
+  };
 }
 
 export interface LocationItem {

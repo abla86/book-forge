@@ -388,11 +388,21 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).length;
 }
 
+export interface VersionPersistenceAdapter {
+  saveSnapshot(snapshot: VersionSnapshot): void;
+  getSnapshots(projectId: string): VersionSnapshot[];
+}
+
 /**
  * VersionService: Core engine for immutable snapshots, time-travel, granular chapter recovery and diffing.
  */
 export class VersionServiceImpl {
   private versionsByProject: Map<string, VersionSnapshot[]> = new Map();
+  private persistenceAdapter: VersionPersistenceAdapter | null = null;
+
+  setPersistenceAdapter(adapter: VersionPersistenceAdapter): void {
+    this.persistenceAdapter = adapter;
+  }
 
   /**
    * Captures an immutable snapshot of the entire project state.
@@ -404,7 +414,7 @@ export class VersionServiceImpl {
     tag: VersionSnapshot["tag"] = "manual",
     revertedChapterNumber?: number
   ): VersionSnapshot {
-    const existing = this.versionsByProject.get(project.id) || [];
+    const existing = this.getVersions(project.id);
     const versionNumber = existing.length + 1;
 
     const totalWords = project.chapters.reduce(
@@ -428,10 +438,30 @@ export class VersionServiceImpl {
 
     existing.unshift(snapshot);
     this.versionsByProject.set(project.id, existing);
+
+    if (this.persistenceAdapter) {
+      try {
+        this.persistenceAdapter.saveSnapshot(snapshot);
+      } catch (err) {
+        console.error("[VersionService] Failed to persist snapshot:", err);
+      }
+    }
+
     return snapshot;
   }
 
   getVersions(projectId: string): VersionSnapshot[] {
+    if (this.persistenceAdapter) {
+      try {
+        const persisted = this.persistenceAdapter.getSnapshots(projectId);
+        if (persisted && persisted.length > 0) {
+          this.versionsByProject.set(projectId, persisted);
+          return persisted;
+        }
+      } catch {
+        // Fallback to memory
+      }
+    }
     return this.versionsByProject.get(projectId) || [];
   }
 
