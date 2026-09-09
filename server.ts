@@ -17,6 +17,7 @@ import {
   RateLimiter,
   EmergencyKillSwitch,
   SessionAuthService,
+  PasswordService,
 } from "./src/lib/security";
 import { CostGuard } from "./src/lib/engine/CostGuard";
 import { BibleEngine } from "./src/lib/engine/BibleEngine";
@@ -33,6 +34,16 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: "15mb" }));
+
+if (process.env.FOUNDER_PASSWORD) {
+  const bootstrapUser = db.getUsers().find((u) => u.role === "FOUNDER");
+  if (bootstrapUser && !bootstrapUser.passwordHash) {
+    db.saveUser({
+      ...bootstrapUser,
+      passwordHash: PasswordService.hash(process.env.FOUNDER_PASSWORD),
+    });
+  }
+}
 
 // ---------------------------------------------------------------------
 // GLOBAL API AUTHENTICATION GATE
@@ -52,11 +63,16 @@ app.use("/api", (req, res, next) => {
   }
 
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  const cookieHeader = req.headers.cookie || "";
+  const cookieMatch = cookieHeader.match(/(?:^|;\s*)__Host-bf_session=([^;]+)/);
+  const cookieToken = cookieMatch ? decodeURIComponent(cookieMatch[1]) : "";
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : cookieToken;
+
+  if (!token) {
     return res.status(401).json({ error: "Autentisering kreves." });
   }
-
-  const token = authHeader.slice(7).trim();
   if (!token || token.length < 32) {
     return res.status(401).json({ error: "Ugyldig autentiseringstoken." });
   }
@@ -180,27 +196,34 @@ function getAuthUser(req: Request): AuthUser {
 // AUTHENTICATION & SESSION MANAGEMENT
 // ---------------------------------------------------------------------
 app.post("/api/auth/login", (req, res) => {
-  const { email } = req.body;
-  if (typeof email !== "string" || !email.trim()) {
-    return res.status(400).json({ error: "E-postadresse er påkrevd for innlogging." });
+  const { email, password } = req.body;
+  if (typeof email !== "string" || !email.trim() || typeof password !== "string") {
+    return res.status(400).json({ error: "E-postadresse og passord er påkrevd." });
   }
 
-  // Authentication must identify an existing server-side account.
-  // Client-controlled role/name/organization fields are deliberately ignored.
   const user = db.getUsers().find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-  if (!user) {
+  const validPassword = Boolean(user?.passwordHash) && PasswordService.verify(password, user!.passwordHash!);
+
+  if (!user || !validPassword) {
     AuditLogger.log({
       actorId: "anonymous",
       actorRole: "READER",
       action: "USER_LOGIN",
       status: "BLOCKED",
-      metadata: { reason: "UNKNOWN_ACCOUNT" },
+      metadata: { reason: "INVALID_CREDENTIALS" },
     });
     return res.status(401).json({ error: "Ugyldig innlogging." });
   }
 
   const { token, expiresAt } = SessionAuthService.generateSessionToken(user.id);
   db.createSession(user.id, token, expiresAt);
+
+  const secureCookie = process.env.NODE_ENV === "production";
+  res.setHeader(
+    "Set-Cookie",
+    `__Host-bf_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict${secureCookie ? "; Secure" : ""}; Max-Age=259200`
+  );
+  res.setHeader("Cache-Control", "no-store");
 
   AuditLogger.log({
     actorId: user.id,
@@ -211,9 +234,8 @@ app.post("/api/auth/login", (req, res) => {
   });
 
   return res.json({
-    token,
     expiresAt,
-    user,
+    user: { ...user, passwordHash: undefined },
   });
 });
 
@@ -232,6 +254,12 @@ app.post("/api/auth/logout", (req, res) => {
       db.deleteSession(token);
     }
   }
+  res.setHeader(
+    "Set-Cookie",
+    "__Host-bf_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0" +
+      (process.env.NODE_ENV === "production" ? "; Secure" : "")
+  );
+  res.setHeader("Clear-Site-Data", '"cache", "cookies", "storage"');
   return res.json({ success: true });
 });
 
