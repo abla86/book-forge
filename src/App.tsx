@@ -266,17 +266,9 @@ export default function BookForgeAI() {
             const found = list.find((b) => b.id === project.id) || list[0];
             applyProject(found);
           } else {
-            // Seed DB with initial book
-            await fetch("/api/books", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-user-id": currentUser.id,
-                "x-user-role": currentUser.role,
-              },
-              body: JSON.stringify(initialProject),
-            });
-            setProjects([initialProject]);
+            // Do not create demo/sample books in the authoritative database.
+            // A new project must originate from the user's own idea.
+            setProjects([]);
           }
         }
       } catch (err) {
