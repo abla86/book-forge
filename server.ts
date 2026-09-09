@@ -864,15 +864,15 @@ app.post("/api/book/generate-synopsis", async (req, res) => {
   const synopsisAccess = BookAccessControl.validateAccess(user, synopsisProject.ownerId || "", "write");
   if (!synopsisAccess.allowed) {
     AuditLogger.log({
-        actorId: user.id,
-        actorRole: user.role,
-        action: "GENERATE_SYNOPSIS",
-        projectId,
-        status: "BLOCKED",
-        errorMessage: access.reason,
-      });
-      return res.status(403).json({ error: access.reason });
-    }
+      actorId: user.id,
+      actorRole: user.role,
+      action: "GENERATE_SYNOPSIS",
+      projectId,
+      status: "BLOCKED",
+      errorMessage: synopsisAccess.reason,
+    });
+    return res.status(403).json({ error: synopsisAccess.reason });
+  }
   }
 
   // 2. Emergency Kill Switch Guard
