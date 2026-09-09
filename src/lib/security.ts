@@ -13,6 +13,42 @@ export interface AuthUser {
   role: UserRole;
   subscriptionPlan: "FREE" | "PRO" | "STUDIO" | "ENTERPRISE";
   organizationId?: string;
+  /** Password hash stored server-side; never expose to clients. */
+  passwordHash?: string;
+}
+
+export class PasswordService {
+  private static readonly N = 32768;
+  private static readonly R = 8;
+  private static readonly P = 3;
+  private static readonly KEY_LENGTH = 64;
+  private static readonly MAX_MEM = 128 * 1024 * 1024;
+
+  static hash(password: string): string {
+    if (typeof password !== "string" || password.length < 15 || password.length > 128) {
+      throw new Error("Passord må være mellom 15 og 128 tegn.");
+    }
+    const salt = crypto.randomBytes(16);
+    const derived = crypto.scryptSync(password, salt, this.KEY_LENGTH, {
+      N: this.N, r: this.R, p: this.P, maxmem: this.MAX_MEM,
+    });
+    return `scrypt${this.N}${this.R}${this.P}${salt.toString("base64url")}${derived.toString("base64url")}`;
+  }
+
+  static verify(password: string, encoded: string): boolean {
+    try {
+      const [algorithm, nRaw, rRaw, pRaw, saltRaw, hashRaw] = encoded.split("$");
+      if (algorithm !== "scrypt" || !nRaw || !rRaw || !pRaw || !saltRaw || !hashRaw) return false;
+      const salt = Buffer.from(saltRaw, "base64url");
+      const expected = Buffer.from(hashRaw, "base64url");
+      const actual = crypto.scryptSync(password, salt, expected.length, {
+        N: Number(nRaw), r: Number(rRaw), p: Number(pRaw), maxmem: this.MAX_MEM,
+      });
+      return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+    } catch {
+      return false;
+    }
+  }
 }
 
 export type SecurityAction =
