@@ -1011,18 +1011,15 @@ app.post("/api/book/write-chapter", async (req, res) => {
   if (!chapterProject) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
   const chapterAccess = BookAccessControl.validateAccess(user, chapterProject.ownerId || "", "write");
   if (!chapterAccess.allowed) {
-    const access = chapterAccess;
-    if (!access.allowed) {
-      AuditLogger.log({
-        actorId: user.id,
-        actorRole: user.role,
-        action: "WRITE_CHAPTER",
-        projectId,
-        status: "BLOCKED",
-        errorMessage: access.reason,
-      });
-      return res.status(403).json({ error: access.reason });
-    }
+    AuditLogger.log({
+      actorId: user.id,
+      actorRole: user.role,
+      action: "WRITE_CHAPTER",
+      projectId,
+      status: "BLOCKED",
+      errorMessage: chapterAccess.reason,
+    });
+    return res.status(403).json({ error: chapterAccess.reason });
   }
 
   // 2. Kill Switch Guard
