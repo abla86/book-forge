@@ -680,14 +680,26 @@ app.post("/api/book/generate-full-book", async (req, res) => {
 });
 
 app.get("/api/book/generation/:jobId", (req, res) => {
+  const user = getAuthUser(req);
   const job = FullBookEngine.getJob(req.params.jobId);
   if (!job) {
     return res.status(404).json({ error: "Genereringsjobb ikke funnet." });
   }
+  const project = db.getProject(job.projectId);
+  if (!project) return res.status(404).json({ error: "Tilknyttet prosjekt ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, project.ownerId || "", "read");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
   return res.json(job);
 });
 
 app.post("/api/book/generation/:jobId/cancel", (req, res) => {
+  const user = getAuthUser(req);
+  const job = FullBookEngine.getJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Genereringsjobb ikke funnet." });
+  const project = db.getProject(job.projectId);
+  if (!project) return res.status(404).json({ error: "Tilknyttet prosjekt ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, project.ownerId || "", "write");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
   const success = FullBookEngine.cancelJob(req.params.jobId);
   return res.json({ success, jobId: req.params.jobId });
 });
@@ -712,6 +724,11 @@ app.post("/api/book/generation/:jobId/resume", async (req, res) => {
 });
 
 app.get("/api/book/generation/project/:projectId", (req, res) => {
+  const user = getAuthUser(req);
+  const project = db.getProject(req.params.projectId);
+  if (!project) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, project.ownerId || "", "read");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
   const job = db.getGenerationJobForProject(req.params.projectId);
   if (!job) {
     return res.status(404).json({ error: "Ingen genereringsjobb funnet for dette prosjektet." });
@@ -769,15 +786,25 @@ app.post("/api/assets/generate", async (req, res) => {
 });
 
 app.get("/api/assets/project/:projectId", (req, res) => {
+  const user = getAuthUser(req);
+  const project = db.getProject(req.params.projectId);
+  if (!project) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, project.ownerId || "", "read");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
   const assets = db.getAssetsForProject(req.params.projectId);
   return res.json(assets);
 });
 
 app.get("/api/assets/:id", (req, res) => {
+  const user = getAuthUser(req);
   const asset = db.getAsset(req.params.id);
   if (!asset) {
     return res.status(404).json({ error: "Visuelt element ikke funnet." });
   }
+  const project = db.getProject(asset.projectId);
+  if (!project) return res.status(404).json({ error: "Tilknyttet prosjekt ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, project.ownerId || "", "read");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
   return res.json(asset);
 });
 
