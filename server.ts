@@ -1154,7 +1154,12 @@ app.post("/api/book/generate-character-journey", async (req, res) => {
   }
 
   try {
-    const { character, bookTitle, genre, tone } = req.body;
+    const { character, bookTitle, genre, tone, projectId } = req.body;
+    if (!projectId) return res.status(400).json({ error: "projectId er påkrevd." });
+    const project = db.getProject(projectId);
+    if (!project) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+    const access = BookAccessControl.validateAccess(getAuthUser(req), project.ownerId || "", "read");
+    if (!access.allowed) return res.status(403).json({ error: access.reason });
     const ai = getGeminiClient();
 
     if (!ai) {
