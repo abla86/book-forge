@@ -115,7 +115,10 @@ export class DatabaseAdapter {
         this.isConnectedToPostgres = false;
       }
     } else {
-      console.log(`[BookForge DB] Operating in Disk-Persisted Storage Mode (${this.dbFilePath}). All mutations survive server restarts.`);
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("DATABASE_URL er påkrevd i production. Disk-basert fallback er deaktivert.");
+      }
+      console.log(`[BookForge DB] Operating in Disk-Persisted Storage Mode (${this.dbFilePath}) for local development only.`);
     }
   }
 
