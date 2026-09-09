@@ -85,6 +85,34 @@ const lengths = [
 ];
 
 function Metric({ label, value }: { label: string; value: string }) {
+  if (!authChecked || !authenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+        <form onSubmit={handleLogin} className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
+          <div className="mb-8">
+            <div className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">BookForge AI</div>
+            <h1 className="mt-2 text-3xl font-black text-slate-950">Logg inn</h1>
+            <p className="mt-2 text-sm text-slate-600">Autentisering skjer på serveren. Sesjonen lagres i en HttpOnly-cookie.</p>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="login-email">E-post</Label>
+              <Input id="login-email" type="email" autoComplete="username" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required />
+            </div>
+            <div>
+              <Label htmlFor="login-password">Passord</Label>
+              <Input id="login-password" type="password" autoComplete="current-password" minLength={15} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
+            </div>
+            {loginError && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{loginError}</div>}
+            <Button type="submit" disabled={isLoggingIn} className="w-full">
+              {isLoggingIn ? "Logger inn..." : "Logg inn"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
       <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -108,6 +136,12 @@ export default function BookForgeAI() {
   });
 
   const [killSwitch, setKillSwitch] = useState<KillSwitchState>({ active: false });
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Form states
   const [idea, setIdea] = useState(project.idea);
@@ -166,8 +200,57 @@ export default function BookForgeAI() {
     setActiveChapter(p.activeChapter || 0);
   }
 
+  // Establish authentication state from the server-side HttpOnly session.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "same-origin" });
+        if (res.ok) {
+          const data = await res.json();
+          if (mounted && data.user) {
+            setCurrentUser(data.user);
+            setAuthenticated(true);
+          }
+        }
+      } catch {
+        // Remain unauthenticated.
+      } finally {
+        if (mounted) setAuthChecked(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Login through the server. The session is stored in an HttpOnly cookie.
+  async function handleLogin(event: React.FormEvent) {
+    event.preventDefault();
+    setLoginError(null);
+    setIsLoggingIn(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail.trim(), password: loginPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Innlogging mislyktes.");
+      setCurrentUser(data.user);
+      setAuthenticated(true);
+      setLoginPassword("");
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : "Innlogging mislyktes.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }
+
   // Load books from database API on mount or user switch
   useEffect(() => {
+    if (!authenticated) return;
     async function loadBooks() {
       try {
         const res = await fetch("/api/books", {
@@ -201,10 +284,11 @@ export default function BookForgeAI() {
       }
     }
     loadBooks();
-  }, [currentUser.id, currentUser.role]);
+  }, [authenticated, currentUser.id, currentUser.role]);
 
-  // Check Kill Switch status on mount
+  // Check Kill Switch status
   useEffect(() => {
+    if (!authenticated) return;
     async function checkKillSwitch() {
       try {
         const res = await fetch("/api/founder/kill-switch-status");
@@ -217,7 +301,7 @@ export default function BookForgeAI() {
       }
     }
     checkKillSwitch();
-  }, []);
+  }, [authenticated]);
 
   const selectedLength = useMemo(
     () => lengths.find((x) => x.label === length) || lengths[1],
@@ -269,6 +353,7 @@ export default function BookForgeAI() {
 
   // Check for existing active generation job on project change
   useEffect(() => {
+    if (!authenticated) return;
     async function checkProjectJob() {
       if (!project.id) return;
       try {
@@ -286,11 +371,11 @@ export default function BookForgeAI() {
       }
     }
     checkProjectJob();
-  }, [project.id]);
+  }, [authenticated, project.id]);
 
   // Real-time polling of autonomous book generation job
   useEffect(() => {
-    if (!activeJobId) return;
+    if (!authenticated || !activeJobId) return;
 
     let isMounted = true;
     const interval = setInterval(async () => {
@@ -350,7 +435,7 @@ export default function BookForgeAI() {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [activeJobId]);
+  }, [authenticated, activeJobId]);
 
   // Actions
   async function handleCreatePlan() {
