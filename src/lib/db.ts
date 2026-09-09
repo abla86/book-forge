@@ -86,7 +86,8 @@ export class DatabaseAdapter {
     }
     this.dbFilePath = path.join(storageDir, "bookforge-db.json");
 
-    // Initialize state from persistent disk storage
+    // Load local state only for development bootstrap/compatibility.
+    // Production requires a reachable PostgreSQL database.
     this.state = this.loadFromDisk();
 
     // Check if external Postgres DATABASE_URL is configured
@@ -95,7 +96,7 @@ export class DatabaseAdapter {
       try {
         this.pgPool = new Pool({
           connectionString: process.env.DATABASE_URL,
-          ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
+          ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: true } : undefined,
           max: 10,
           idleTimeoutMillis: 30000,
         });
@@ -107,8 +108,11 @@ export class DatabaseAdapter {
             console.log("[BookForge DB] Successfully connected to PostgreSQL database.");
           })
           .catch((err) => {
-            console.warn("[BookForge DB] PostgreSQL connection error, maintaining resilient disk-persisted fallback:", err.message);
             this.isConnectedToPostgres = false;
+            if (process.env.NODE_ENV === "production") {
+              throw new Error(`PostgreSQL-tilkobling feilet i production: ${err.message}`);
+            }
+            console.warn("[BookForge DB] PostgreSQL connection error in development:", err.message);
           });
       } catch (poolErr) {
         console.warn("[BookForge DB] Failed to construct PostgreSQL Pool:", poolErr);
