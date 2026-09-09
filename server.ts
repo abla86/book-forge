@@ -628,7 +628,7 @@ app.post("/api/book/versions/rollback", (req, res) => {
   const user = getAuthUser(req);
   const { projectId, versionNumber } = req.body;
   try {
-    const restored = VersionService.rollback(projectId, versionNumber);
+    const restored = VersionService.rollback(projectId, versionNumber, user.id);
     AuditLogger.log({
       actorId: user.id,
       actorRole: user.role,
@@ -643,6 +643,63 @@ app.post("/api/book/versions/rollback", (req, res) => {
     return res.status(404).json({ error: msg });
   }
 });
+
+// API: Granular Chapter Recovery & Diffing
+app.post("/api/book/versions/revert-chapter", (req, res) => {
+  const user = getAuthUser(req);
+  const { projectId, currentProject, chapterNumber, targetVersionNumber } = req.body;
+
+  if (!projectId || !currentProject || !chapterNumber || !targetVersionNumber) {
+    return res.status(400).json({ error: "Mangler påkrevde parametere for kapittelgjenoppretting." });
+  }
+
+  try {
+    const result = VersionService.revertChapter(
+      projectId,
+      currentProject,
+      Number(chapterNumber),
+      Number(targetVersionNumber),
+      user.id
+    );
+
+    AuditLogger.log({
+      actorId: user.id,
+      actorRole: user.role,
+      action: "REVERT_CHAPTER",
+      projectId,
+      status: "SUCCESS",
+      metadata: {
+        chapterNumber,
+        targetVersionNumber,
+        wordDelta: result.chapterDiff.wordDelta,
+      },
+    });
+
+    return res.json(result);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Kunne ikke gjenopprette kapittel";
+    return res.status(400).json({ error: msg });
+  }
+});
+
+app.get("/api/book/versions/:projectId/diff", (req, res) => {
+  const { projectId } = req.params;
+  const fromVersion = parseInt(req.query.from as string);
+  const toVersion = parseInt(req.query.to as string);
+
+  if (isNaN(fromVersion) || isNaN(toVersion)) {
+    return res.status(400).json({ error: "Ugyldig fra- eller til-versjonsnummer." });
+  }
+
+  try {
+    const diff = VersionService.compareVersions(projectId, fromVersion, toVersion);
+    return res.json(diff);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Kunne ikke beregne versjonsdiff";
+    return res.status(404).json({ error: msg });
+  }
+});
+
 
 // ---------------------------------------------------------------------
 // Server Initialization & Vite Integration

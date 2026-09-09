@@ -116,6 +116,7 @@ export interface BookProject {
   tone: string;
   lengthLabel: string;
   targetWords: number;
+  currentWords?: number;
   targetChapters: number;
   synopsis: string;
   coverStyle: string;
