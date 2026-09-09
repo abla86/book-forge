@@ -858,8 +858,12 @@ app.post("/api/book/generate-synopsis", async (req, res) => {
   const { idea, title, genre, tone, length, projectId, projectOwnerId } = req.body;
 
   // 1. Project Isolation Check
-  if (projectOwnerId) {
-    const access = BookAccessControl.validateAccess(user, projectOwnerId, "write");
+  if (!projectId) return res.status(400).json({ error: "projectId er påkrevd." });
+  const synopsisProject = db.getProject(projectId);
+  if (!synopsisProject) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+  const synopsisAccess = BookAccessControl.validateAccess(user, synopsisProject.ownerId || "", "write");
+  if (!synopsisAccess.allowed) {
+    const access = synopsisAccess;
     if (!access.allowed) {
       AuditLogger.log({
         actorId: user.id,
@@ -1005,8 +1009,12 @@ app.post("/api/book/write-chapter", async (req, res) => {
   } = req.body;
 
   // 1. Access Control
-  if (projectOwnerId) {
-    const access = BookAccessControl.validateAccess(user, projectOwnerId, "write");
+  if (!projectId) return res.status(400).json({ error: "projectId er påkrevd." });
+  const chapterProject = db.getProject(projectId);
+  if (!chapterProject) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+  const chapterAccess = BookAccessControl.validateAccess(user, chapterProject.ownerId || "", "write");
+  if (!chapterAccess.allowed) {
+    const access = chapterAccess;
     if (!access.allowed) {
       AuditLogger.log({
         actorId: user.id,
@@ -1198,13 +1206,11 @@ Krav:
 app.post("/api/book/deep-continuity-audit", async (req, res) => {
   const user = getAuthUser(req);
   const { projectId } = req.body;
-  if (projectId) {
-    const project = db.getProject(projectId);
-    if (!project) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
-    const access = BookAccessControl.validateAccess(user, project.ownerId || "", "read");
-    if (!access.allowed) return res.status(403).json({ error: access.reason });
-  }
-  const user = getAuthUser(req);
+  if (!projectId) return res.status(400).json({ error: "projectId er påkrevd." });
+  const project = db.getProject(projectId);
+  if (!project) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, project.ownerId || "", "read");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
   try {
     EmergencyKillSwitch.assertCanGenerate();
   } catch (err: unknown) {
