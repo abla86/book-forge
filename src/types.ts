@@ -108,6 +108,8 @@ export interface BookCover {
 
 export interface BookProject {
   id: string;
+  ownerId?: string;
+  universeId?: string;
   title: string;
   idea: string;
   genre: string;

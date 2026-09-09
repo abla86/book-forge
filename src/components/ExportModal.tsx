@@ -1,3 +1,7 @@
+// =====================================================================
+// BookForge AI - ExportModal (Professional Publishing & Manuscript Export)
+// =====================================================================
+
 import { useState } from "react";
 import { BookProject } from "../types";
 import {
@@ -8,9 +12,11 @@ import {
   FileCode,
   FileText,
   CheckCircle2,
-  Share2,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { Button } from "./ui/button";
+import { ExportEngine, ExportResult } from "../lib/engine/ExportEngine";
 
 interface ExportModalProps {
   project: BookProject;
@@ -23,6 +29,8 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
 
   const [activeView, setActiveView] = useState<"export" | "read">("export");
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [loadingFormat, setLoadingFormat] = useState<string | null>(null);
 
   const completedChapters = project.chapters.filter((c) => c.content);
   const totalWrittenWords = project.chapters.reduce(
@@ -30,92 +38,85 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
     0
   );
 
-  function triggerDownload(filename: string, content: string, mimeType: string) {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
+  function triggerDownload(res: ExportResult) {
+    const url = URL.createObjectURL(res.blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = filename;
+    a.download = res.filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
 
-  function handleExportEPUB() {
-    let fullText = `${project.title.toUpperCase()}\nAv ${project.author}\n\n`;
-    fullText += `SYNOPSIS:\n${project.synopsis}\n\n`;
-    fullText += `KOLOFON\nUtgitt via BookForge AI\nOpphavsrett © 2026 ${project.author}. Alle rettigheter forbeholdt.\n\n`;
-    fullText += `INNHOLDSFORTEGNELSE\n`;
-    project.chapters.forEach((c) => {
-      fullText += `Kapittel ${c.number}: ${c.title}\n`;
-    });
-    fullText += `\n=========================================\n\n`;
-
-    project.chapters.forEach((c) => {
-      fullText += `KAPITTEL ${c.number}\n${c.title.toUpperCase()}\n\n`;
-      fullText += c.content ? c.content : `[Kapittel ${c.number} under utarbeidelse: ${c.summary}]`;
-      fullText += `\n\n-----------------------------------------\n\n`;
-    });
-
-    triggerDownload(`${project.title.replace(/\s+/g, "_")}.epub.txt`, fullText, "text/plain;charset=utf-8");
-    setDownloadSuccess("EPUB-manuskriptpakke lastet ned!");
-    setTimeout(() => setDownloadSuccess(null), 3000);
+  function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   }
 
-  function handleExportDOCX() {
-    const htmlContent = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>${project.title}</title>
-<style>
-  body { font-family: 'Garamond', 'Georgia', serif; font-size: 12pt; line-height: 2; margin: 2in; color: #111; }
-  h1 { font-size: 24pt; text-align: center; margin-top: 3in; }
-  h2 { font-size: 16pt; text-align: center; margin-top: 1in; page-break-before: always; }
-  .author { text-align: center; font-size: 14pt; margin-top: 1in; margin-bottom: 3in; }
-  .colophon { font-size: 10pt; line-height: 1.5; margin-top: 2in; page-break-after: always; }
-  p { text-indent: 1.5em; margin: 0; }
-</style>
-</head>
-<body>
-  <h1>${project.title}</h1>
-  <div class="author">Av ${project.author}</div>
-  <div class="colophon">
-    <p>Utgitt av BookForge AI Studio</p>
-    <p>Opphavsrett &copy; 2026 ${project.author}</p>
-    <p>Sjanger: ${project.genre} | Tone: ${project.tone}</p>
-  </div>
-  ${project.chapters
-    .map(
-      (c) => `
-    <h2>Kapittel ${c.number}<br>${c.title}</h2>
-    ${c.content
-      ? c.content
-          .split("\n\n")
-          .map((p) => `<p>${p}</p>`)
-          .join("")
-      : `<p><em>[Kapittel ${c.number}: ${c.summary}]</em></p>`}
-  `
-    )
-    .join("")}
-</body>
-</html>`;
+  async function handleExportEPUB() {
+    setLoadingFormat("EPUB");
+    setErrorMessage(null);
+    setDownloadSuccess(null);
+    try {
+      const res = await ExportEngine.generateEPUB(project);
+      triggerDownload(res);
+      setDownloadSuccess(`EPUB e-bok generert og lastet ned (${formatBytes(res.sizeBytes)})!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Kunne ikke generere EPUB.";
+      setErrorMessage(`Feil under EPUB-generering: ${msg}`);
+    } finally {
+      setLoadingFormat(null);
+    }
+  }
 
-    triggerDownload(`${project.title.replace(/\s+/g, "_")}.doc`, htmlContent, "application/msword");
-    setDownloadSuccess("DOCX/Word-kompatibelt manuskript lastet ned!");
-    setTimeout(() => setDownloadSuccess(null), 3000);
+  async function handleExportDOCX() {
+    setLoadingFormat("DOCX");
+    setErrorMessage(null);
+    setDownloadSuccess(null);
+    try {
+      const res = await ExportEngine.generateDOCX(project);
+      triggerDownload(res);
+      setDownloadSuccess(`Microsoft Word (DOCX) forlagspakke lastet ned (${formatBytes(res.sizeBytes)})!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Kunne ikke generere DOCX.";
+      setErrorMessage(`Feil under DOCX-generering: ${msg}`);
+    } finally {
+      setLoadingFormat(null);
+    }
+  }
+
+  async function handleExportPDF() {
+    setLoadingFormat("PDF");
+    setErrorMessage(null);
+    setDownloadSuccess(null);
+    try {
+      const res = await ExportEngine.generatePDF(project);
+      triggerDownload(res);
+      setDownloadSuccess(`PDF-manuskript generert og lastet ned (${formatBytes(res.sizeBytes)})!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Kunne ikke generere PDF.";
+      setErrorMessage(`Feil under PDF-generering: ${msg}`);
+    } finally {
+      setLoadingFormat(null);
+    }
   }
 
   function handleExportJSON() {
-    const jsonStr = JSON.stringify(project, null, 2);
-    triggerDownload(`${project.title.replace(/\s+/g, "_")}_bokforge.json`, jsonStr, "application/json");
-    setDownloadSuccess("Komplett prosjektfil lagret!");
-    setTimeout(() => setDownloadSuccess(null), 3000);
-  }
-
-  function handlePrintPDF() {
-    window.print();
+    setLoadingFormat("JSON");
+    setErrorMessage(null);
+    setDownloadSuccess(null);
+    try {
+      const res = ExportEngine.generateJSON(project);
+      triggerDownload(res);
+      setDownloadSuccess(`Komplett prosjektarkiv (JSON) lastet ned (${formatBytes(res.sizeBytes)})!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Kunne ikke eksportere JSON.";
+      setErrorMessage(`Feil under JSON-eksport: ${msg}`);
+    } finally {
+      setLoadingFormat(null);
+    }
   }
 
   return (
@@ -184,8 +185,15 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
         <div className="flex-1 overflow-y-auto p-6 sm:p-8">
           {downloadSuccess && (
             <div className="mb-6 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900 animate-in fade-in">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              {downloadSuccess}
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+              <span>{downloadSuccess}</span>
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="mb-6 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-900 animate-in fade-in">
+              <AlertCircle className="h-5 w-5 text-rose-600 shrink-0" />
+              <span>{errorMessage}</span>
             </div>
           )}
 
@@ -196,7 +204,7 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
                   Velg publiseringsformat
                 </h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  Alle filer genereres med full metadata, kolofon, kapitteloverskrifter og forlagskvalitet.
+                  Alle filer genereres i sanntid med reelt innhold, kolofon, kapitteloverskrifter og gyldig filstruktur.
                 </p>
               </div>
 
@@ -207,16 +215,23 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
                     <div className="grid h-12 w-12 place-items-center rounded-2xl bg-indigo-50 text-indigo-700">
                       <BookOpen className="h-6 w-6" />
                     </div>
-                    <h4 className="mt-4 text-xl font-black text-slate-900">EPUB</h4>
+                    <h4 className="mt-4 text-xl font-black text-slate-900">EPUB 3.0</h4>
                     <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                      For e-boklesere, Apple Books, Kindle og Kobo. Inkluderer kapittelinndeling og kolofonside.
+                      Standard e-bokfil med metadata, OEBPS-innhold og navigasjonsdokument for Apple Books, Kindle og Kobo.
                     </p>
                   </div>
                   <Button
                     onClick={handleExportEPUB}
+                    disabled={Boolean(loadingFormat)}
                     className="mt-6 w-full rounded-xl bg-indigo-700 hover:bg-indigo-800"
                   >
-                    Last ned EPUB
+                    {loadingFormat === "EPUB" ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Genererer...
+                      </>
+                    ) : (
+                      "Last ned EPUB"
+                    )}
                   </Button>
                 </div>
 
@@ -228,14 +243,21 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
                     </div>
                     <h4 className="mt-4 text-xl font-black text-slate-900">Word (DOCX)</h4>
                     <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                      Standard forlagsformat med dobbel linjeavstand, innrykk og sidetall for redaktører.
+                      Standard forlagsformat med korrekt sideskift, innrykk, kolofon og avsnittsoppsett for forlagsredaksjonen.
                     </p>
                   </div>
                   <Button
                     onClick={handleExportDOCX}
+                    disabled={Boolean(loadingFormat)}
                     className="mt-6 w-full rounded-xl bg-blue-700 hover:bg-blue-800"
                   >
-                    Last ned DOCX
+                    {loadingFormat === "DOCX" ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Genererer...
+                      </>
+                    ) : (
+                      "Last ned DOCX"
+                    )}
                   </Button>
                 </div>
 
@@ -247,14 +269,21 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
                     </div>
                     <h4 className="mt-4 text-xl font-black text-slate-900">Utskrift / PDF</h4>
                     <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                      Typografisk formatert bokoppsett klar for prøvetrykk eller utskrift direkte i nettleseren.
+                      Ekte PDF-fil generert med Times Roman-typografi, forlagslayout, sidetall og innholdsfortegnelse.
                     </p>
                   </div>
                   <Button
-                    onClick={handlePrintPDF}
+                    onClick={handleExportPDF}
+                    disabled={Boolean(loadingFormat)}
                     className="mt-6 w-full rounded-xl bg-rose-700 hover:bg-rose-800"
                   >
-                    Skriv ut / PDF
+                    {loadingFormat === "PDF" ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Genererer...
+                      </>
+                    ) : (
+                      "Last ned PDF"
+                    )}
                   </Button>
                 </div>
 
@@ -266,15 +295,22 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
                     </div>
                     <h4 className="mt-4 text-xl font-black text-slate-900">Bok-arkiv (JSON)</h4>
                     <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                      Komplett backup med all data: bokplan, karakterbibel, kontinuitetsregler og manuskript.
+                      Fullstendig rådata-backup: bokplan, karakterbibel, kontinuitetsregler, tidslinje og hele manuskriptet.
                     </p>
                   </div>
                   <Button
                     onClick={handleExportJSON}
+                    disabled={Boolean(loadingFormat)}
                     variant="outline"
                     className="mt-6 w-full rounded-xl"
                   >
-                    Lagre backup
+                    {loadingFormat === "JSON" ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Pakker...
+                      </>
+                    ) : (
+                      "Lagre backup"
+                    )}
                   </Button>
                 </div>
               </div>
@@ -291,7 +327,7 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    Fullstendig kolofon og opphavsrettserklæring
+                    Fullstendig kolofon og opphavsrettserklæring (2026)
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -299,7 +335,7 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    Bokbibel-appendiks med karakterliste og tidslinje
+                    Karakterer, steder og kontinuitet forankret fra bokbibelen
                   </div>
                 </div>
               </div>
