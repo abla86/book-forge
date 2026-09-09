@@ -336,7 +336,10 @@ app.get("/api/auth/me", (req, res) => {
   return res.json({ user, allUsers });
 });
 
-app.get("/api/founder/kill-switch-status", (_req, res) => {
+app.get("/api/founder/kill-switch-status", (req, res) => {
+  const user = getAuthUser(req);
+  const authCheck = BookAccessControl.requireFounder(user);
+  if (!authCheck.allowed) return res.status(403).json({ error: authCheck.reason });
   res.json(EmergencyKillSwitch.getState());
 });
 
@@ -451,18 +454,22 @@ app.get("/api/books/:id", (req, res) => {
 
 app.post("/api/books", (req, res) => {
   const user = getAuthUser(req);
-  const bookData = req.body;
+  const bookData = req.body ?? {};
 
-  if (!bookData.title) {
+  if (typeof bookData.title !== "string" || !bookData.title.trim()) {
     return res.status(400).json({ error: "Boktittel er påkrevd." });
   }
 
   const book: BookProject = {
-    ...bookData,
-    id: bookData.id || `book-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    ownerId: bookData.ownerId || user.id,
-    author: bookData.author || user.name,
-    createdAt: bookData.createdAt || new Date().toISOString(),
+    title: bookData.title.trim(),
+    author: typeof bookData.author === "string" ? bookData.author : user.name,
+    genre: typeof bookData.genre === "string" ? bookData.genre : undefined,
+    description: typeof bookData.description === "string" ? bookData.description : undefined,
+    chapters: Array.isArray(bookData.chapters) ? bookData.chapters : [],
+    settings: bookData.settings && typeof bookData.settings === "object" ? bookData.settings : undefined,
+    id: `book-${crypto.randomUUID()}`,
+    ownerId: user.id,
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 
@@ -495,11 +502,18 @@ app.put("/api/books/:id", (req, res) => {
     }
   }
 
+  const incoming = req.body ?? {};
   const updated: BookProject = {
     ...existing,
-    ...req.body,
+    title: typeof incoming.title === "string" ? incoming.title.trim() : existing.title,
+    author: typeof incoming.author === "string" ? incoming.author : existing.author,
+    genre: typeof incoming.genre === "string" ? incoming.genre : existing.genre,
+    description: typeof incoming.description === "string" ? incoming.description : existing.description,
+    chapters: Array.isArray(incoming.chapters) ? incoming.chapters : existing.chapters,
+    settings: incoming.settings && typeof incoming.settings === "object" ? incoming.settings : existing.settings,
     id: existing.id,
     ownerId: existing.ownerId,
+    createdAt: existing.createdAt,
     updatedAt: new Date().toISOString(),
   };
 
