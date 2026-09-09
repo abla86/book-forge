@@ -271,15 +271,30 @@ app.get("/api/auth/me", (req, res) => {
 // ---------------------------------------------------------------------
 // ORGANIZATIONS & TENANCY
 // ---------------------------------------------------------------------
-app.get("/api/organizations", (_req, res) => {
-  return res.json(db.getOrganizations());
+app.get("/api/organizations", (req, res) => {
+  const user = getAuthUser(req);
+  if (user.role === "FOUNDER" || user.role === "ADMIN") {
+    return res.json(db.getOrganizations());
+  }
+  if (!user.organizationId) {
+    return res.json([]);
+  }
+  const org = db.getOrganization(user.organizationId);
+  return res.json(org ? [org] : []);
 });
 
 app.get("/api/organizations/:id", (req, res) => {
+  const user = getAuthUser(req);
   const org = db.getOrganization(req.params.id);
   if (!org) {
     return res.status(404).json({ error: "Organisasjon ikke funnet." });
   }
+
+  const isPrivileged = user.role === "FOUNDER" || user.role === "ADMIN";
+  if (!isPrivileged && user.organizationId !== org.id && user.organizationId !== org.slug) {
+    return res.status(403).json({ error: "Adgang nektet." });
+  }
+
   return res.json(org);
 });
 
