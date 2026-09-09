@@ -109,26 +109,35 @@ class CostGuardService {
 
   /**
    * Pre-check before executing an AI call.
-   * Throws if budget would be exceeded (unless user is FOUNDER).
+   * Founder accounts receive a higher ceiling, never an unlimited one.
    */
   checkBudget(user: AuthUser, projectId?: string): { allowed: boolean; warning?: string } {
-    if (user.role === "FOUNDER") {
-      // Founders have unlimited creation authority
-      return { allowed: true };
+    const projectLimit = user.role === "FOUNDER"
+      ? Math.max(this.config.maxBudgetUsdPerBook * 10, 250)
+      : this.config.maxBudgetUsdPerBook;
+
+    const dayStart = new Date();
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const platformSpendToday = this.records
+      .filter((r) => new Date(r.timestamp).getTime() >= dayStart.getTime())
+      .reduce((sum, r) => sum + r.costUsd, 0);
+
+    if (platformSpendToday >= this.config.dailyPlatformBudgetUsd) {
+      throw new Error("Plattformens daglige AI-budsjett er nådd. Nye AI-kall er midlertidig blokkert.");
     }
 
     if (projectId) {
       const projectSpend = this.getProjectSpend(projectId);
-      if (projectSpend >= this.config.maxBudgetUsdPerBook) {
+      if (projectSpend >= projectLimit) {
         throw new Error(
-          `Budsjettgrense nådd for prosjektet ($${projectSpend.toFixed(2)} / $${this.config.maxBudgetUsdPerBook}). Kontakt support eller oppgrader til Studio.`
+          `Budsjettgrense nådd for prosjektet (${projectSpend.toFixed(2)} / ${projectLimit}).`
         );
       }
-      const pct = (projectSpend / this.config.maxBudgetUsdPerBook) * 100;
+      const pct = (projectSpend / projectLimit) * 100;
       if (pct >= this.config.warningThresholdPercent) {
         return {
           allowed: true,
-          warning: `Advarsel: Prosjektet har nådd ${pct.toFixed(0)}% av budsjettgrensen ($${projectSpend.toFixed(2)} brukt).`,
+          warning: `Advarsel: Prosjektet har nådd ${pct.toFixed(0)}% av budsjettgrensen (${projectSpend.toFixed(2)} brukt).`,
         };
       }
     }
