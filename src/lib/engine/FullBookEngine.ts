@@ -1156,7 +1156,7 @@ Fortsett herfra:
     }
 
     // Step 3: Fast continuity check on this chapter
-    const fakeChap: Chapter = {
+    const chapterForValidation: Chapter = {
       id: blueprint.number,
       number: blueprint.number,
       title: blueprint.title,
@@ -1172,7 +1172,7 @@ Fortsett herfra:
     };
 
     const continuityCheck = ContinuityAgent.validateChapter(
-      fakeChap,
+      chapterForValidation,
       previousChapter ? [previousChapter] : [],
       bibleEngine.getData()
     );
