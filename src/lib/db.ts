@@ -15,7 +15,7 @@ import fs from "fs";
 import path from "path";
 import { AuthUser, AuditLogEntry, KillSwitchState } from "./security";
 import { CostRecord } from "./engine/CostGuard";
-import { BookProject } from "../types";
+import { BookProject, BookGenerationJob } from "../types";
 import { VersionSnapshot } from "./engine/VersionHistory";
 
 export interface SystemSetting<T = unknown> {
@@ -41,6 +41,7 @@ export interface PersistenceState {
   books: BookProject[];
   bookBibles: Record<string, BookBibleRecord>;
   bookVersions: Record<string, VersionSnapshot[]>;
+  generationJobs: Record<string, BookGenerationJob>;
   auditLogs: AuditLogEntry[];
   costRecords: CostRecord[];
   systemSettings: Record<string, SystemSetting>;
@@ -97,6 +98,7 @@ export class DatabaseAdapter {
       books: [],
       bookBibles: {},
       bookVersions: {},
+      generationJobs: {},
       auditLogs: [],
       costRecords: [],
       systemSettings: {
@@ -315,6 +317,36 @@ export class DatabaseAdapter {
   }
 
   // -------------------------------------------------------------------
+  // Book Generation Jobs
+  // -------------------------------------------------------------------
+  public saveGenerationJob(job: BookGenerationJob): void {
+    if (!this.state.generationJobs) {
+      this.state.generationJobs = {};
+    }
+    this.state.generationJobs[job.id] = { ...job };
+    this.saveToDisk();
+  }
+
+  public getGenerationJob(jobId: string): BookGenerationJob | undefined {
+    if (!this.state.generationJobs) return undefined;
+    return this.state.generationJobs[jobId];
+  }
+
+  public getGenerationJobForProject(projectId: string): BookGenerationJob | undefined {
+    if (!this.state.generationJobs) return undefined;
+    const all = Object.values(this.state.generationJobs);
+    // Return latest job for project
+    return all
+      .filter((j) => j.projectId === projectId)
+      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0];
+  }
+
+  public getGenerationJobs(): BookGenerationJob[] {
+    if (!this.state.generationJobs) return [];
+    return Object.values(this.state.generationJobs);
+  }
+
+  // -------------------------------------------------------------------
   // Stats Aggregation (for Founder Dashboard)
   // -------------------------------------------------------------------
   public getAggregatedStats() {
@@ -328,6 +360,10 @@ export class DatabaseAdapter {
     const totalInputTokens = this.state.costRecords.reduce((acc, r) => acc + (r.inputTokens || 0), 0);
     const totalOutputTokens = this.state.costRecords.reduce((acc, r) => acc + (r.outputTokens || 0), 0);
 
+    const jobs = this.getGenerationJobs();
+    const activeJobs = jobs.filter((j) => j.status === "running").length;
+    const failedJobs = jobs.filter((j) => j.status === "failed").length;
+
     return {
       totalUsers: this.state.users.length,
       activeProjects: books.length,
@@ -338,6 +374,8 @@ export class DatabaseAdapter {
         output: totalOutputTokens,
         total: totalInputTokens + totalOutputTokens,
       },
+      activeGenerationJobs: activeJobs,
+      failedGenerationJobs: failedJobs,
       auditLogCount: this.state.auditLogs.length,
       costRecordCount: this.state.costRecords.length,
     };

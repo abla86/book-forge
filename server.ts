@@ -21,6 +21,7 @@ import { CostGuard } from "./src/lib/engine/CostGuard";
 import { BibleEngine } from "./src/lib/engine/BibleEngine";
 import { ContinuityAgent } from "./src/lib/engine/ContinuityAgent";
 import { VersionService } from "./src/lib/engine/VersionService";
+import { FullBookEngine } from "./src/lib/engine/FullBookEngine";
 import { db } from "./src/lib/db";
 import { BookProject } from "./src/types";
 
@@ -393,6 +394,136 @@ app.put("/api/books/:id/bible", (req, res) => {
   });
 
   return res.json({ success: true, bible: req.body });
+});
+
+// ---------------------------------------------------------------------
+// FULL AUTONOMOUS BOOK GENERATION ENGINE API
+// ---------------------------------------------------------------------
+app.post("/api/book/generate-full-book", async (req, res) => {
+  const user = getAuthUser(req);
+  const {
+    projectId,
+    idea,
+    title,
+    author,
+    genre,
+    subgenre,
+    tone,
+    audience,
+    language,
+    pov,
+    targetWords,
+    targetChapters,
+    acts,
+  } = req.body;
+
+  if (!idea && !title) {
+    return res.status(400).json({ error: "En idé eller tittel er påkrevd for å starte bokgenerering." });
+  }
+
+  // Verify project existence or create one if not existing
+  let project = projectId ? db.getProject(projectId) : undefined;
+  if (!project) {
+    const newId = projectId || `proj-${Date.now()}`;
+    project = {
+      id: newId,
+      ownerId: user.id,
+      title: title || "Uten tittel",
+      idea: idea || "",
+      genre: genre || "Roman",
+      tone: tone || "Realistisk",
+      lengthLabel: "Standard",
+      targetWords: targetWords || 80000,
+      currentWords: 0,
+      targetChapters: targetChapters || 32,
+      synopsis: "",
+      coverStyle: "Minimalistisk",
+      phase: "planned",
+      progress: 0,
+      activeChapter: 1,
+      acts: acts || 4,
+      pov: pov || "Tredjeperson personlig",
+      ending: "Lukket",
+      author: author || user.name || "Anne Beth Andersen",
+      chapters: [],
+      characters: [],
+      locations: [],
+      timeline: [],
+      continuityRules: [],
+      covers: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    db.saveProject(project);
+  } else if (project.ownerId) {
+    const access = BookAccessControl.validateAccess(user, project.ownerId, "write");
+    if (!access.allowed) {
+      return res.status(403).json({ error: access.reason });
+    }
+  }
+
+  const aiClient = getGeminiClient();
+  if (!aiClient) {
+    return res.status(500).json({
+      error: "AI-tjenesten krever en konfigurert GEMINI_API_KEY for ekte bokgenerering. Falsk simulering er strengt deaktivert.",
+    });
+  }
+
+  try {
+    const job = await FullBookEngine.startGeneration(
+      {
+        projectId: project.id,
+        idea: idea || project.idea || project.title,
+        title: title || project.title,
+        author: author || project.author || user.name,
+        genre: genre || project.genre,
+        subgenre,
+        tone: tone || project.tone,
+        audience,
+        language: language || "Norsk (Bokmål)",
+        pov: pov || project.pov,
+        targetWords: targetWords || project.targetWords || 80000,
+        targetChapters: targetChapters || project.targetChapters || 32,
+        acts: acts || project.acts || 4,
+        user,
+      },
+      aiClient
+    );
+
+    return res.json({
+      jobId: job.id,
+      projectId: job.projectId,
+      status: job.status,
+      phase: job.phase,
+      totalChapters: job.totalChapters,
+      targetWords: job.totalWords,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Kunne ikke starte bokgenerering";
+    console.error("[Server] Feil ved oppstart av full-book generering:", msg);
+    return res.status(500).json({ error: msg });
+  }
+});
+
+app.get("/api/book/generation/:jobId", (req, res) => {
+  const job = FullBookEngine.getJob(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({ error: "Genereringsjobb ikke funnet." });
+  }
+  return res.json(job);
+});
+
+app.post("/api/book/generation/:jobId/cancel", (req, res) => {
+  const success = FullBookEngine.cancelJob(req.params.jobId);
+  return res.json({ success, jobId: req.params.jobId });
+});
+
+app.get("/api/book/generation/project/:projectId", (req, res) => {
+  const job = db.getGenerationJobForProject(req.params.projectId);
+  if (!job) {
+    return res.status(404).json({ error: "Ingen genereringsjobb funnet for dette prosjektet." });
+  }
+  return res.json(job);
 });
 
 // ---------------------------------------------------------------------

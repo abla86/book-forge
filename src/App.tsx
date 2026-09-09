@@ -39,7 +39,7 @@ import { Badge } from "./components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
 
-import { Chapter, BookProject, ContinuityAnomaly, Character } from "./types";
+import { Chapter, BookProject, ContinuityAnomaly, Character, BookGenerationJob, ProjectPhase } from "./types";
 import { initialProject, defaultChapters32, sampleContinuityAnomalies } from "./data/initialProject";
 import { ChapterReaderModal } from "./components/ChapterReaderModal";
 import { BibleDetailModal } from "./components/BibleDetailModal";
@@ -50,6 +50,7 @@ import { FounderDashboard } from "./components/FounderDashboard";
 import { VersionHistoryModal } from "./components/VersionHistoryModal";
 import { ContinuityAuditorModal } from "./components/ContinuityAuditorModal";
 import { CharacterDevelopmentModal } from "./components/CharacterDevelopmentModal";
+import { GenerationModal } from "./components/GenerationModal";
 
 import { AuthUser, UserRole, KillSwitchState } from "./lib/security";
 import { VersionService } from "./lib/engine/VersionService";
@@ -118,12 +119,19 @@ export default function BookForgeAI() {
   const [authorName, setAuthorName] = useState(project.author);
 
   // Pipeline state
-  const [phase, setPhase] = useState<"setup" | "planned" | "writing" | "complete">(project.phase);
+  const [phase, setPhase] = useState<ProjectPhase>(project.phase);
   const [progress, setProgress] = useState(project.progress);
   const [activeChapter, setActiveChapter] = useState(project.activeChapter);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [isAutoWriting, setIsAutoWriting] = useState(false);
   const [selectedAct, setSelectedAct] = useState<number | "all">("all");
+
+  // Autonomous Full-Book Engine State
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [generationJob, setGenerationJob] = useState<BookGenerationJob | null>(null);
+  const [isGeneratingBook, setIsGeneratingBook] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [isGenerationModalOpen, setIsGenerationModalOpen] = useState(false);
 
   // Modals state
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
@@ -233,15 +241,15 @@ export default function BookForgeAI() {
         list.push({
           id: i,
           number: i,
-          title: `Avsløringen ved port ${i}`,
-          summary: `Scene ${i}: Dypere inn i det underjordiske nettverket avdekkes ukjente hemmeligheter.`,
+          title: `Kapittel ${i}`,
+          summary: `Planlagt scene i akt ${Math.min(4, Math.ceil((i / total) * 4))} for «${title}».`,
           act: Math.min(4, Math.ceil((i / total) * 4)),
           status: "planned",
-          wordTarget: 2500,
+          wordTarget: Math.round(selectedLength.words / total),
           currentWords: 0,
-          povCharacter: "Mira Vang",
-          conflict: "Uforutsette hindringer i tunnelene",
-          continuityNotes: "Nøkkelens magnetisme tiltar",
+          povCharacter: project.characters[0]?.name || "Hovedperson",
+          conflict: "Narrativ eskalering",
+          continuityNotes: "",
           content: "",
         });
       }
@@ -249,7 +257,7 @@ export default function BookForgeAI() {
       list = list.slice(0, total);
     }
     return list;
-  }, [project.chapters, selectedLength.chapters]);
+  }, [project.chapters, project.characters, selectedLength.chapters, selectedLength.words, title]);
 
   const filteredChapters = useMemo(() => {
     if (selectedAct === "all") return displayChapters;
@@ -259,6 +267,91 @@ export default function BookForgeAI() {
   const totalWordsWritten = useMemo(() => {
     return displayChapters.reduce((acc, c) => acc + (c.currentWords || 0), 0);
   }, [displayChapters]);
+
+  // Check for existing active generation job on project change
+  useEffect(() => {
+    async function checkProjectJob() {
+      if (!project.id) return;
+      try {
+        const res = await fetch(`/api/book/generation/project/${project.id}`);
+        if (res.ok) {
+          const job: BookGenerationJob = await res.json();
+          if (job.status === "running") {
+            setActiveJobId(job.id);
+            setGenerationJob(job);
+            setIsGeneratingBook(true);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    checkProjectJob();
+  }, [project.id]);
+
+  // Real-time polling of autonomous book generation job
+  useEffect(() => {
+    if (!activeJobId) return;
+
+    let isMounted = true;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/book/generation/${activeJobId}`);
+        if (!res.ok) return;
+        const job: BookGenerationJob = await res.json();
+        if (!isMounted) return;
+
+        setGenerationJob(job);
+
+        // Fetch fresh project state from backend to sync chapters in real-time
+        if (job.projectId) {
+          const pRes = await fetch(`/api/books/${job.projectId}`);
+          if (pRes.ok) {
+            const updatedProject: BookProject = await pRes.json();
+            if (isMounted) {
+              setProject(updatedProject);
+              setProgress(updatedProject.progress || 0);
+              setPhase(updatedProject.phase);
+              if (job.currentChapter) {
+                setActiveChapter(job.currentChapter);
+              }
+            }
+          }
+        }
+
+        if (job.status === "completed") {
+          setIsGeneratingBook(false);
+          setActiveJobId(null);
+          setPhase("complete");
+          setProgress(100);
+          try {
+            confetti({
+              particleCount: 150,
+              spread: 90,
+              origin: { y: 0.6 },
+            });
+          } catch {
+            // ignore
+          }
+        } else if (job.status === "failed") {
+          setIsGeneratingBook(false);
+          setActiveJobId(null);
+          setGenerationError(job.error || "Genereringsprosessen feilet.");
+        } else if (job.status === "cancelled") {
+          setIsGeneratingBook(false);
+          setActiveJobId(null);
+          setGenerationError("Genereringsjobben ble avbrutt.");
+        }
+      } catch (err) {
+        console.error("Feil under polling av genereringsjobb:", err);
+      }
+    }, 1500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [activeJobId]);
 
   // Actions
   async function handleCreatePlan() {
@@ -304,106 +397,76 @@ export default function BookForgeAI() {
     }
   }
 
-  function handleStartWriting() {
+  // Real Autonomous Book Generation Handler
+  async function handleStartWriting() {
     if (killSwitch.active) {
       alert(`AI-generering er midlertidig stanset: ${killSwitch.reason || "Emergency Kill Switch er aktiv"}`);
       return;
     }
 
-    // Capture checkpoint before writing
-    VersionService.createSnapshot(
-      project,
-      `Startet kapittelskriving (${totalWordsWritten} ord)`,
-      currentUser.id
-    );
-
-    setPhase("writing");
-    setIsAutoWriting(true);
-    setProgress(37);
-    setActiveChapter(6);
-  }
-
-  function handleSimulateComplete() {
-    setPhase("complete");
-    setIsAutoWriting(false);
-    setProgress(100);
-    setActiveChapter(selectedLength.chapters);
-
-    const updatedChapters = displayChapters.map((c) => ({
-      ...c,
-      status: "completed" as const,
-      currentWords: c.currentWords || c.wordTarget,
-      content:
-        c.content ||
-        `Kapittel ${c.number}: ${c.title}\n\n` +
-        `Stillheten senket seg over scenen idet hendelsene i «${title}» nådde sitt vendepunkt. ` +
-        `I denne ${genre.toLowerCase()}-fortellingen lå det en uunngåelig nerve i luften, en fornemmelse av at hvert skritt fremover krevde en beslutning som ikke kunne omgjøres.\n\n` +
-        `${c.summary}\n\n` +
-        `Med sansene skjerpet observerte hovedpersonen detaljene rundt seg. Tonen var ${tone.toLowerCase()}, ` +
-        `og hvert ord som ble utvekslet bar vekten av uuttalte forventninger. Da situasjonen krevde resolutt handling, fantes det ingen vei tilbake.`,
-    }));
-
-    const updatedProject: BookProject = {
-      ...project,
-      title,
-      genre,
-      tone,
-      synopsis,
-      author: authorName,
-      phase: "complete",
-      progress: 100,
-      chapters: updatedChapters,
-    };
-
-    setProject(updatedProject);
-
-    // Auto-persist to database API
-    fetch(`/api/books/${updatedProject.id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "x-user-id": currentUser.id,
-        "x-user-role": currentUser.role,
-      },
-      body: JSON.stringify(updatedProject),
-    }).catch((err) => console.warn("Could not persist completed project:", err));
-
-    // Save final version snapshot
-    VersionService.createSnapshot(
-      updatedProject,
-      `Fullført roman: ${title} (${selectedLength.words} ord)`,
-      currentUser.id
-    );
+    setIsGeneratingBook(true);
+    setGenerationError(null);
 
     try {
-      confetti({
-        particleCount: 120,
-        spread: 80,
-        origin: { y: 0.6 },
+      // Capture checkpoint before starting generation
+      VersionService.createSnapshot(
+        project,
+        `Startet autonom full-bok generering (${selectedLength.chapters} kapitler, ${selectedLength.words} ord)`,
+        currentUser.id
+      );
+
+      const res = await fetch("/api/book/generate-full-book", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": currentUser.id,
+          "x-user-role": currentUser.role,
+        },
+        body: JSON.stringify({
+          projectId: project.id,
+          idea: idea || project.idea || project.title,
+          title: title || project.title,
+          genre: genre || project.genre,
+          tone: tone || project.tone,
+          targetWords: selectedLength.words,
+          targetChapters: selectedLength.chapters,
+          author: authorName || project.author || currentUser.name,
+          language: "Norsk (Bokmål)",
+          pov: project.pov || "Tredjeperson personlig",
+        }),
       });
-    } catch {
-      // ignore
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Kunne ikke starte bokgenerering.");
+      }
+
+      setActiveJobId(data.jobId);
+      setIsGenerationModalOpen(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Feil under oppstart av autonom bokgenerering.";
+      setGenerationError(msg);
+      setIsGeneratingBook(false);
+      alert(msg);
     }
   }
 
-  // Handle active chapter progression simulation step
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isAutoWriting && activeChapter < selectedLength.chapters) {
-      timer = setTimeout(() => {
-        setActiveChapter((prev) => {
-          const next = prev + 1;
-          const pct = Math.min(96, Math.round((next / selectedLength.chapters) * 100));
-          setProgress(pct);
-          if (next >= selectedLength.chapters) {
-            handleSimulateComplete();
-          }
-          return next;
-        });
-      }, 1400);
+  async function handleCancelGeneration(jobId: string) {
+    try {
+      await fetch(`/api/book/generation/${jobId}/cancel`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": currentUser.id,
+          "x-user-role": currentUser.role,
+        },
+      });
+      setActiveJobId(null);
+      setIsGeneratingBook(false);
+    } catch (err) {
+      console.error("Kunne ikke stanse generering:", err);
     }
-    return () => clearTimeout(timer);
-  }, [isAutoWriting, activeChapter, selectedLength.chapters]);
+  }
 
   function handleOpenChapter(chap: Chapter) {
     setSelectedChapter(chap);
@@ -508,6 +571,32 @@ export default function BookForgeAI() {
           <span>
             EMERGENCY KILL SWITCH AKTIVERT: All AI-generering er midlertidig stanset på plattformnivå ({killSwitch.reason || "Sikkerhetsstans"}). Forfattere kan fortsatt redigere manuelt, eksportere og administrere bokbibelen.
           </span>
+        </div>
+      )}
+
+      {/* Persistent Autonomous Book Generation Banner */}
+      {generationJob && generationJob.status === "running" && !isGenerationModalOpen && (
+        <div className="sticky top-0 z-40 bg-indigo-950 text-white px-5 py-3 text-xs font-bold shadow-xl flex items-center justify-between border-b border-indigo-800 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+            </span>
+            <span className="flex items-center gap-2">
+              <Flame className="h-4 w-4 text-amber-400 animate-pulse" />
+              <span>
+                Autonom produksjon pågår: {generationJob.phase === "writing" ? `Skriver kapittel ${generationJob.currentChapter || 1} av ${generationJob.totalChapters}` : `Fase: ${generationJob.phase}`} • {generationJob.generatedWords?.toLocaleString("nb-NO") || 0} ord skrevet ({Math.round(((generationJob.generatedWords || 0) / (generationJob.totalWords || 80000)) * 100)}%)
+              </span>
+            </span>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setIsGenerationModalOpen(true)}
+            className="rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs h-8 px-3 font-bold border border-white/20"
+          >
+            <Eye className="mr-1.5 h-3.5 w-3.5 text-amber-300" />
+            Vis fremdrift
+          </Button>
         </div>
       )}
 
@@ -648,9 +737,9 @@ export default function BookForgeAI() {
                   <span className="flex items-center gap-1 text-emerald-400 font-bold">
                     <CheckCircle2 className="h-3.5 w-3.5" /> Klar til trykk
                   </span>
-                ) : isAutoWriting ? (
-                  <span className="flex items-center gap-1 text-indigo-300 animate-pulse font-medium">
-                    <Flame className="h-3.5 w-3.5" /> Skriver nå...
+                ) : isGeneratingBook || generationJob?.status === "running" ? (
+                  <span className="flex items-center gap-1 text-amber-300 animate-pulse font-medium">
+                    <Flame className="h-3.5 w-3.5 text-amber-400" /> Skriver kapittel {generationJob?.currentChapter || activeChapter}...
                   </span>
                 ) : (
                   <span>
@@ -815,24 +904,40 @@ export default function BookForgeAI() {
                       <Metric label="Avslutning" value="Lukket" />
                     </div>
 
-                    <div className="flex gap-3 pt-3 flex-wrap">
+                    <div className="flex gap-3 pt-3 flex-wrap items-center">
                       <Button
                         onClick={handleStartWriting}
-                        disabled={isAutoWriting || phase === "complete"}
-                        className="rounded-xl bg-slate-900 text-white hover:bg-slate-800 font-bold"
+                        disabled={isGeneratingBook || (generationJob?.status === "running") || phase === "complete"}
+                        className="rounded-2xl bg-indigo-700 text-white hover:bg-indigo-800 font-black shadow-md shadow-indigo-200 py-6 px-6 text-sm"
                       >
-                        <Flame className="mr-2 h-4 w-4 text-amber-400" />
-                        {phase === "complete" ? "Romanen er ferdigskrevet" : "Start kapittelskriving"}
+                        {isGeneratingBook || generationJob?.status === "running" ? (
+                          <>
+                            <LoaderCircle className="mr-2 h-5 w-5 animate-spin text-amber-300" />
+                            Skriver romanen ({generationJob?.completedChapters || 0}/{selectedLength.chapters} kap)...
+                          </>
+                        ) : phase === "complete" ? (
+                          <>
+                            <Check className="mr-2 h-4 w-4 text-emerald-300" />
+                            Romanen er fullført ({totalWordsWritten.toLocaleString("nb-NO")} ord)
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="mr-2 h-4 w-4 text-amber-300" />
+                            Generer hele romanen autonomt ({selectedLength.chapters} kapitler)
+                          </>
+                        )}
                       </Button>
 
-                      <Button
-                        variant="outline"
-                        onClick={handleSimulateComplete}
-                        className="rounded-xl font-bold border-slate-300"
-                      >
-                        <Check className="mr-2 h-4 w-4 text-emerald-600" />
-                        Simuler fullført bok
-                      </Button>
+                      {(isGeneratingBook || generationJob?.status === "running") && (
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsGenerationModalOpen(true)}
+                          className="rounded-2xl font-bold border-indigo-200 bg-indigo-50 text-indigo-900 hover:bg-indigo-100 py-6 px-4 text-sm"
+                        >
+                          <Eye className="mr-1.5 h-4 w-4 text-indigo-700" />
+                          Vis fremdrift ({generationJob?.completedChapters || 0}/{selectedLength.chapters})
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -1564,6 +1669,15 @@ export default function BookForgeAI() {
           }));
         }}
         onClose={() => setIsCharacterDevOpen(false)}
+      />
+
+      {/* Autonomous Full-Book Generation Progress Modal */}
+      <GenerationModal
+        job={generationJob}
+        isOpen={isGenerationModalOpen}
+        onClose={() => setIsGenerationModalOpen(false)}
+        onCancel={handleCancelGeneration}
+        bookTitle={title}
       />
     </div>
   );

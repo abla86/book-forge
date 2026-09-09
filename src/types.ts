@@ -1,4 +1,4 @@
-export type ProjectPhase = "setup" | "planned" | "writing" | "complete";
+export type ProjectPhase = "setup" | "planned" | "writing" | "complete" | "needs-review";
 
 export interface Chapter {
   id: number;
@@ -145,4 +145,80 @@ export interface BookProject {
   covers: BookCover[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BookSpecification {
+  title: string;
+  author: string;
+  originalIdea: string;
+  genre: string;
+  subgenre: string;
+  tone: string;
+  audience: string;
+  language: string;
+  pov: string;
+  targetWords: number;
+  targetChapters: number;
+  acts: number;
+  synopsis: string;
+  themes: string[];
+  setting: string;
+  timePeriod: string;
+  chapterTargets: number[];
+}
+
+export interface ChapterBlueprint {
+  number: number;
+  title: string;
+  act: number;
+  purpose: string;
+  summary: string;
+  openingState: string;
+  endingState: string;
+  scenes: string[];
+  pov: string;
+  characters: string[];
+  locations: string[];
+  conflict: string;
+  reveal: string;
+  emotionalMovement: string;
+  plotThreadsAdvanced: string[];
+  foreshadowing: string[];
+  continuityRequirements: string[];
+  wordTarget: number;
+}
+
+export interface ChapterGenerationState {
+  chapterNumber: number;
+  status: "pending" | "writing" | "partial" | "validating" | "completed" | "failed";
+  attempt: number;
+  targetWords: number;
+  currentWords: number;
+  startedAt?: string;
+  completedAt?: string;
+  lastError?: string;
+}
+
+export interface BookGenerationJob {
+  id: string;
+  projectId: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  phase: "specification" | "bible" | "blueprints" | "writing" | "audit" | "repair" | "completed" | "failed";
+  totalChapters: number;
+  completedChapters: number;
+  totalWords: number;
+  targetWords?: number;
+  generatedWords: number;
+  currentChapter: number;
+  currentChapterWords: number;
+  currentChapterTarget: number;
+  startedAt: string;
+  completedAt?: string;
+  elapsedMs: number;
+  activeJobs: number;
+  retrying: number;
+  error?: string;
+  retryCount: number;
+  createdBy: string;
+  chapterStates?: Record<number, ChapterGenerationState>;
 }

@@ -32,11 +32,30 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loadingFormat, setLoadingFormat] = useState<string | null>(null);
 
-  const completedChapters = project.chapters.filter((c) => c.content);
+  const completedChapters = project.chapters.filter((c) => c.content && c.content.trim().length > 0);
+  const unwrittenChapters = project.chapters.filter((c) => !c.content || c.content.trim().length === 0);
+  const isComplete = project.chapters.length > 0 && unwrittenChapters.length === 0;
+
   const totalWrittenWords = project.chapters.reduce(
     (acc, c) => acc + (c.currentWords || 0),
     0
   );
+
+  function assertCanExport(): boolean {
+    if (project.chapters.length === 0) {
+      setErrorMessage("Eksport blokkert: Prosjektet har ingen kapitler registrert.");
+      return false;
+    }
+    if (!isComplete) {
+      const missingList = unwrittenChapters.slice(0, 4).map((c) => `Kapittel ${c.number}`).join(", ");
+      const extraCount = unwrittenChapters.length > 4 ? ` og ${unwrittenChapters.length - 4} til` : "";
+      setErrorMessage(
+        `Eksport blokkert: Manuskriptet er ufullstendig. ${unwrittenChapters.length} av ${project.chapters.length} kapitler mangler forfattet innhold (${missingList}${extraCount}). Alle kapitler må være forfattet og verifisert før eksport kan tillates.`
+      );
+      return false;
+    }
+    return true;
+  }
 
   function triggerDownload(res: ExportResult) {
     const url = URL.createObjectURL(res.blob);
@@ -56,9 +75,11 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
   }
 
   async function handleExportEPUB() {
-    setLoadingFormat("EPUB");
     setErrorMessage(null);
     setDownloadSuccess(null);
+    if (!assertCanExport()) return;
+
+    setLoadingFormat("EPUB");
     try {
       const res = await ExportEngine.generateEPUB(project);
       triggerDownload(res);
@@ -72,9 +93,11 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
   }
 
   async function handleExportDOCX() {
-    setLoadingFormat("DOCX");
     setErrorMessage(null);
     setDownloadSuccess(null);
+    if (!assertCanExport()) return;
+
+    setLoadingFormat("DOCX");
     try {
       const res = await ExportEngine.generateDOCX(project);
       triggerDownload(res);
@@ -88,9 +111,11 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
   }
 
   async function handleExportPDF() {
-    setLoadingFormat("PDF");
     setErrorMessage(null);
     setDownloadSuccess(null);
+    if (!assertCanExport()) return;
+
+    setLoadingFormat("PDF");
     try {
       const res = await ExportEngine.generatePDF(project);
       triggerDownload(res);
@@ -104,9 +129,11 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
   }
 
   function handleExportJSON() {
-    setLoadingFormat("JSON");
     setErrorMessage(null);
     setDownloadSuccess(null);
+    if (!assertCanExport()) return;
+
+    setLoadingFormat("JSON");
     try {
       const res = ExportEngine.generateJSON(project);
       triggerDownload(res);
@@ -194,6 +221,18 @@ export function ExportModal({ project, isOpen, onClose }: ExportModalProps) {
             <div className="mb-6 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-900 animate-in fade-in">
               <AlertCircle className="h-5 w-5 text-rose-600 shrink-0" />
               <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {!isComplete && (
+            <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900 flex items-start gap-3 animate-in fade-in">
+              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold text-sm">Eksport sperret – Ufullstendig manuskript</div>
+                <div className="text-xs text-amber-800 mt-1 leading-relaxed">
+                  Dette bokprosjektet har {unwrittenChapters.length} uferdige kapitler ({completedChapters.length} av {project.chapters.length} skrevet). Før du kan eksportere fullverdige EPUB-, DOCX- eller PDF-filer, må alle kapitlene være forfattet og godkjent i skrivemodulen.
+                </div>
+              </div>
             </div>
           )}
 
