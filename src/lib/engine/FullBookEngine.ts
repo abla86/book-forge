@@ -539,6 +539,7 @@ export class FullBookEngineService {
           const targetBp = blueprints.find((b) => b.number === inc.number);
           if (targetBp) {
             const repaired = await this.generateSingleChapterProse(
+              jobId,
               spec,
               targetBp,
               project.chapters[inc.number - 2],
@@ -558,16 +559,29 @@ export class FullBookEngineService {
       // -------------------------------------------------------------
       // PHASE 7: Final Validation & Project Completion
       // -------------------------------------------------------------
-      const allDone = project.chapters.every((c) => c.content && (c.currentWords || 0) > 1000);
+      // Re-run the manuscript audit after any repairs.
+      const finalAudit = ContinuityAgent.auditFullManuscript(
+        project.chapters,
+        bibleEngine.getData(),
+        "ai_assisted"
+      );
+      const finalCriticalAnomalies = finalAudit.anomalies.filter((a) => a.severity === "Kritisk");
 
-      if (allDone && severeAnomalies.length === 0) {
+      const allDone = project.chapters.length === blueprints.length &&
+        project.chapters.every((c) =>
+          Boolean(c.content && c.content.trim()) &&
+          (c.currentWords || 0) >= Math.floor((c.wordTarget || 0) * 0.85)
+        );
+
+      if (allDone && finalCriticalAnomalies.length === 0) {
         project.phase = "complete";
         project.progress = 100;
+        project.currentWords = project.chapters.reduce((sum, c) => sum + (c.currentWords || 0), 0);
         db.saveProject(project);
 
         VersionService.createSnapshot(
           project,
-          `Komplett roman ferdigstilt og validert (${totalGeneratedWords.toLocaleString("nb-NO")} ord)`,
+          `Komplett roman ferdigstilt og validert (${project.currentWords.toLocaleString("nb-NO")} ord)`,
           user.id
         );
 
@@ -575,6 +589,8 @@ export class FullBookEngineService {
           status: "completed",
           phase: "completed",
           completedAt: new Date().toISOString(),
+          generatedWords: project.currentWords,
+          completedChapters: project.chapters.length,
           elapsedMs: Date.now() - startTime,
         });
 
@@ -584,15 +600,24 @@ export class FullBookEngineService {
           action: "BOOK_GENERATION_COMPLETED",
           status: "SUCCESS",
           projectId,
-          metadata: { totalWords: totalGeneratedWords, totalChapters: project.chapters.length },
+          metadata: {
+            totalWords: project.currentWords,
+            totalChapters: project.chapters.length,
+            continuityScore: finalAudit.score,
+          },
         });
       } else {
         project.phase = "needs-review";
+        project.progress = Math.min(99, Math.round(
+          (project.chapters.filter((c) => c.content && (c.currentWords || 0) >= Math.floor((c.wordTarget || 0) * 0.85)).length /
+            Math.max(1, blueprints.length)) * 100
+        ));
         db.saveProject(project);
 
         this.updateJob(jobId, {
-          status: "completed",
-          phase: "completed",
+          status: "failed",
+          phase: "needs-review",
+          error: `Boken ble ikke godkjent som komplett. Manglende/for korte kapitler: ${project.chapters.filter((c) => !c.content || (c.currentWords || 0) < Math.floor((c.wordTarget || 0) * 0.85)).length}. Kritiske kontinuitetsavvik: ${finalCriticalAnomalies.length}.`,
           completedAt: new Date().toISOString(),
           elapsedMs: Date.now() - startTime,
         });
@@ -858,72 +883,9 @@ Svar KUN med JSON.
 
     try {
       return JSON.parse(cleanJsonString(text));
-    } catch {
-      return {
-        bookTitle: spec.title,
-        genre: spec.genre,
-        tone: spec.tone,
-        characters: [
-          {
-            id: "char-1",
-            name: "Hovedpersonen",
-            role: "Hovedperson",
-            archetype: "Protagonist",
-            age: 38,
-            appearance: "Mørkt hår, skarpe observante øyne",
-            goal: "Avdekke sannheten",
-            motivationInternal: "Beskytte familien",
-            internalConflict: "Tvil på egne minner",
-            secrets: "Fortiet en hendelse for ti år siden",
-            background: "Erfaren etterforsker og forfatter",
-          },
-        ],
-        locations: [
-          {
-            id: "loc-1",
-            name: "Hovedkvarteret / Åstedet",
-            type: "Innvendig",
-            atmosphere: "Kjølig, fuktig og preget av tidens tann",
-            geography: "Sentralt i distriktet",
-            notableEvents: "Her skjer den utløsende handlingen",
-          },
-        ],
-        timeline: [
-          {
-            id: "time-1",
-            act: 1,
-            timeframe: "Dag 1",
-            event: "Den utløsende hendelsen",
-            charactersInvolved: ["Hovedpersonen"],
-          },
-        ],
-        continuityRules: [
-          {
-            id: "rule-1",
-            category: "Psykologi",
-            rule: "Hovedpersonen kan aldri stole blindt på sekundærvitner.",
-          },
-        ],
-        plotThreads: [
-          {
-            id: "pt-1",
-            title: "Sannheten om fortiden",
-            introducedInChapter: 1,
-            resolvedInChapter: spec.targetChapters,
-            status: "open",
-            notes: "Eskalerer gjennom romanen",
-          },
-        ],
-        foreshadowing: [
-          {
-            id: "fs-1",
-            clue: "Et fotografi med feil datostempel",
-            placedInChapter: 1,
-            payoffChapter: spec.targetChapters - 2,
-            resolved: false,
-          },
-        ],
-      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Ukjent JSON-feil";
+      throw new Error(`AI-bokbibelgenerering feilet: ugyldig JSON mottatt (${message}). Ingen demo-/placeholderdata brukes.`);
     }
   }
 
