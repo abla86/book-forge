@@ -1283,14 +1283,23 @@ SVAR KUN MED GYLDIG JSON:
 
 // API: Version Service Endpoints
 app.get("/api/book/versions/:projectId", (req, res) => {
-  const versions = VersionService.getVersions(req.params.projectId);
-  return res.json(versions);
+  const user = getAuthUser(req);
+  const project = db.getProject(req.params.projectId);
+  if (!project) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, project.ownerId || "", "read");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
+  return res.json(VersionService.getVersions(req.params.projectId));
 });
 
 app.post("/api/book/versions/snapshot", (req, res) => {
   const user = getAuthUser(req);
   const { project, summary } = req.body;
-  const snapshot = VersionService.createSnapshot(project, summary || "Manuell lagring", user.id);
+  if (!project?.id) return res.status(400).json({ error: "Prosjekt-ID er påkrevd." });
+  const storedProject = db.getProject(project.id);
+  if (!storedProject) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, storedProject.ownerId || "", "write");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
+  const snapshot = VersionService.createSnapshot(storedProject, summary || "Manuell lagring", user.id);
 
   AuditLogger.log({
     actorId: user.id,
@@ -1307,6 +1316,10 @@ app.post("/api/book/versions/snapshot", (req, res) => {
 app.post("/api/book/versions/rollback", (req, res) => {
   const user = getAuthUser(req);
   const { projectId, versionNumber } = req.body;
+  const project = db.getProject(projectId);
+  if (!project) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, project.ownerId || "", "write");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
 
   try {
     const restored = VersionService.rollback(projectId, versionNumber, user.id);
@@ -1331,6 +1344,11 @@ app.post("/api/book/versions/rollback", (req, res) => {
 app.post("/api/book/versions/revert-chapter", (req, res) => {
   const user = getAuthUser(req);
   const { projectId, currentProject, chapterNumber, targetVersionNumber } = req.body;
+
+  const storedProject = db.getProject(projectId);
+  if (!storedProject) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, storedProject.ownerId || "", "write");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
 
   if (!projectId || !currentProject || !chapterNumber || !targetVersionNumber) {
     return res.status(400).json({ error: "Mangler påkrevde parametere for kapittelgjenoppretting." });
@@ -1368,7 +1386,12 @@ app.post("/api/book/versions/revert-chapter", (req, res) => {
 });
 
 app.get("/api/book/versions/:projectId/diff", (req, res) => {
+  const user = getAuthUser(req);
   const { projectId } = req.params;
+  const project = db.getProject(projectId);
+  if (!project) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, project.ownerId || "", "read");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
   const fromVersion = parseInt(req.query.from as string);
   const toVersion = parseInt(req.query.to as string);
 
