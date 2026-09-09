@@ -35,6 +35,47 @@ const PORT = 3000;
 app.use(express.json({ limit: "15mb" }));
 
 // ---------------------------------------------------------------------
+// GLOBAL API AUTHENTICATION GATE
+// Deny by default. Public API routes are explicitly allow-listed.
+// Protected routes require a live server-side session.
+// ---------------------------------------------------------------------
+app.use("/api", (req, res, next) => {
+  const publicRoutes = new Set([
+    "GET /api/health",
+    "POST /api/auth/login",
+    "POST /api/auth/logout",
+  ]);
+  const routeKey = `${req.method} ${req.path}`;
+
+  if (publicRoutes.has(routeKey)) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Autentisering kreves." });
+  }
+
+  const token = authHeader.slice(7).trim();
+  if (!token || token.length < 32) {
+    return res.status(401).json({ error: "Ugyldig autentiseringstoken." });
+  }
+
+  const session = db.getSession(token);
+  if (!session) {
+    return res.status(401).json({ error: "Sesjonen er ugyldig eller utløpt." });
+  }
+
+  const sessionUser = db.getUser(session.userId);
+  if (!sessionUser) {
+    db.deleteSession(token);
+    return res.status(401).json({ error: "Brukeren til sesjonen finnes ikke." });
+  }
+
+  return next();
+});
+
+// ---------------------------------------------------------------------
 // Connect Core Services to Authoritative Persistence Layer
 // ---------------------------------------------------------------------
 AuditLogger.setPersistenceAdapter({
@@ -139,25 +180,23 @@ function getAuthUser(req: Request): AuthUser {
 // AUTHENTICATION & SESSION MANAGEMENT
 // ---------------------------------------------------------------------
 app.post("/api/auth/login", (req, res) => {
-  const { email, role, name, organizationId } = req.body;
-  if (!email) {
+  const { email } = req.body;
+  if (typeof email !== "string" || !email.trim()) {
     return res.status(400).json({ error: "E-postadresse er påkrevd for innlogging." });
   }
 
-  // Find user by email or create new
-  let user = db.getUsers().find((u) => u.email.toLowerCase() === email.toLowerCase());
+  // Authentication must identify an existing server-side account.
+  // Client-controlled role/name/organization fields are deliberately ignored.
+  const user = db.getUsers().find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
   if (!user) {
-    const newUserId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    const assignedRole: UserRole = role || (email.includes("founder") ? "FOUNDER" : "AUTHOR");
-    user = {
-      id: newUserId,
-      name: name || email.split("@")[0],
-      email: email.toLowerCase(),
-      role: assignedRole,
-      subscriptionPlan: assignedRole === "FOUNDER" ? "STUDIO" : "PRO",
-      organizationId,
-    };
-    db.saveUser(user);
+    AuditLogger.log({
+      actorId: "anonymous",
+      actorRole: "READER",
+      action: "USER_LOGIN",
+      status: "BLOCKED",
+      metadata: { reason: "UNKNOWN_ACCOUNT" },
+    });
+    return res.status(401).json({ error: "Ugyldig innlogging." });
   }
 
   const { token, expiresAt } = SessionAuthService.generateSessionToken(user.id);
