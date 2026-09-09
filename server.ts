@@ -564,18 +564,18 @@ app.delete("/api/books/:id", (req, res) => {
 // BOOK BIBLE PERSISTENCE
 // ---------------------------------------------------------------------
 app.get("/api/books/:id/bible", (req, res) => {
-  const bible = db.getBible(req.params.id);
-  if (bible) {
-    return res.json(bible);
-  }
-
+  const user = getAuthUser(req);
   const project = db.getProject(req.params.id);
-  if (project) {
-    const engine = new BibleEngine(project);
-    return res.json(engine.getData());
-  }
+  if (!project) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
 
-  return res.status(404).json({ error: "Bokbibel ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, project.ownerId || "", "read");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
+
+  const bible = db.getBible(req.params.id);
+  if (bible) return res.json(bible);
+
+  const engine = new BibleEngine(project);
+  return res.json(engine.getData());
 });
 
 app.put("/api/books/:id/bible", (req, res) => {
@@ -740,6 +740,13 @@ app.post("/api/book/generation/:jobId/cancel", (req, res) => {
 // Resume a generation job from its persistent checkpoint
 app.post("/api/book/generation/:jobId/resume", async (req, res) => {
   const user = getAuthUser(req);
+  const existingJob = FullBookEngine.getJob(req.params.jobId);
+  if (!existingJob) return res.status(404).json({ error: "Genereringsjobb ikke funnet." });
+  const project = db.getProject(existingJob.projectId);
+  if (!project) return res.status(404).json({ error: "Tilknyttet prosjekt ikke funnet." });
+  const access = BookAccessControl.validateAccess(user, project.ownerId || "", "write");
+  if (!access.allowed) return res.status(403).json({ error: access.reason });
+
   const ai = getGeminiClient();
   if (!ai) {
     return res.status(503).json({
