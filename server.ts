@@ -855,7 +855,7 @@ app.get("/api/assets/:id", (req, res) => {
 // API: Generate Synopsis
 app.post("/api/book/generate-synopsis", async (req, res) => {
   const user = getAuthUser(req);
-  const { idea, title, genre, tone, length, projectId, projectOwnerId } = req.body;
+  const { idea, title, genre, tone, length, projectId } = req.body;
 
   // 1. Project Isolation Check
   if (!projectId) return res.status(400).json({ error: "projectId er påkrevd." });
@@ -863,9 +863,7 @@ app.post("/api/book/generate-synopsis", async (req, res) => {
   if (!synopsisProject) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
   const synopsisAccess = BookAccessControl.validateAccess(user, synopsisProject.ownerId || "", "write");
   if (!synopsisAccess.allowed) {
-    const access = synopsisAccess;
-    if (!access.allowed) {
-      AuditLogger.log({
+    AuditLogger.log({
         actorId: user.id,
         actorRole: user.role,
         action: "GENERATE_SYNOPSIS",
@@ -1004,7 +1002,6 @@ app.post("/api/book/write-chapter", async (req, res) => {
     characters,
     previousSummary,
     projectId,
-    projectOwnerId,
     bibleData,
   } = req.body;
 
