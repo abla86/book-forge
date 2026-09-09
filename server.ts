@@ -76,8 +76,12 @@ app.use("/api", (req, res, next) => {
 
   const authHeader = req.headers.authorization;
   const cookieHeader = req.headers.cookie || "";
-  const cookieMatch = cookieHeader.match(/(?:^|;\s*)__Host-bf_session=([^;]+)/);
-  const cookieToken = cookieMatch ? decodeURIComponent(cookieMatch[1]) : "";
+  const cookieName = process.env.NODE_ENV === "production" ? "__Host-bf_session" : "bf_session";
+  const cookiePair = cookieHeader
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${cookieName}=`));
+  const cookieToken = cookiePair ? decodeURIComponent(cookiePair.slice(cookieName.length + 1)) : "";
   const token = authHeader?.startsWith("Bearer ")
     ? authHeader.slice(7).trim()
     : cookieToken;
@@ -231,9 +235,10 @@ app.post("/api/auth/login", (req, res) => {
   db.createSession(user.id, token, expiresAt);
 
   const secureCookie = process.env.NODE_ENV === "production";
+  const sessionCookieName = secureCookie ? "__Host-bf_session" : "bf_session";
   res.setHeader(
     "Set-Cookie",
-    `__Host-bf_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict${secureCookie ? "; Secure" : ""}; Max-Age=259200`
+    `${sessionCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict${secureCookie ? "; Secure" : ""}; Max-Age=259200`
   );
   res.setHeader("Cache-Control", "no-store");
 
@@ -266,9 +271,10 @@ app.post("/api/auth/logout", (req, res) => {
       db.deleteSession(token);
     }
   }
+  const sessionCookieName = process.env.NODE_ENV === "production" ? "__Host-bf_session" : "bf_session";
   res.setHeader(
     "Set-Cookie",
-    "__Host-bf_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0" +
+    `${sessionCookieName}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0` +
       (process.env.NODE_ENV === "production" ? "; Secure" : "")
   );
   res.setHeader("Clear-Site-Data", '"cache", "cookies", "storage"');
