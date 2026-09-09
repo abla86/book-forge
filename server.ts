@@ -1175,6 +1175,14 @@ Krav:
 // API: Deep Continuity Audit (ContinuityAgent Integration)
 app.post("/api/book/deep-continuity-audit", async (req, res) => {
   const user = getAuthUser(req);
+  const { projectId } = req.body;
+  if (projectId) {
+    const project = db.getProject(projectId);
+    if (!project) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
+    const access = BookAccessControl.validateAccess(user, project.ownerId || "", "read");
+    if (!access.allowed) return res.status(403).json({ error: access.reason });
+  }
+  const user = getAuthUser(req);
   try {
     EmergencyKillSwitch.assertCanGenerate();
   } catch (err: unknown) {
