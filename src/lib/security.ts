@@ -290,44 +290,38 @@ class RateLimiterService {
     jobId: string,
     jobType: string
   ): { success: boolean; error?: string } {
-    // FOUNDER bypass: unlimited concurrent generation
-    if (user.role === "FOUNDER") {
-      const current = this.activeJobsByUser.get(user.id) || new Set();
-      current.add(jobId);
-      this.activeJobsByUser.set(user.id, current);
-      return { success: true };
-    }
-
     const now = Date.now();
+    const maxConcurrent = user.role === "FOUNDER" ? 8 : this.defaultMaxConcurrent;
+    const maxRequests = user.role === "FOUNDER" ? 500 : this.maxRequestsPerHour;
     const oneHourAgo = now - 60 * 60 * 1000;
 
     // Check hourly volume
     const timestamps = (this.requestTimestampsByUser.get(user.id) || []).filter(
       (ts) => ts > oneHourAgo
     );
-    if (timestamps.length >= this.maxRequestsPerHour) {
+    if (timestamps.length >= maxRequests) {
       AuditLogger.log({
         actorId: user.id,
         actorRole: user.role,
         action: "RATE_LIMIT_BLOCKED",
         status: "BLOCKED",
-        errorMessage: `Timegrense overskredet (${this.maxRequestsPerHour} forespørsler/time)`,
+        errorMessage: `Timegrense overskredet (${maxRequests} forespørsler/time)`,
       });
       return {
         success: false,
-        error: `Rate limit overskredet: Maksimalt ${this.maxRequestsPerHour} AI-handlinger tillatt per time.`,
+        error: `Rate limit overskredet: Maksimalt ${maxRequests} AI-handlinger tillatt per time.`,
       };
     }
 
     // Check concurrent jobs
     const current = this.activeJobsByUser.get(user.id) || new Set();
-    if (current.size >= this.defaultMaxConcurrent) {
+    if (current.size >= maxConcurrent) {
       AuditLogger.log({
         actorId: user.id,
         actorRole: user.role,
         action: "RATE_LIMIT_BLOCKED",
         status: "BLOCKED",
-        errorMessage: `Maks antall samtidige jobber nådd (${this.defaultMaxConcurrent})`,
+        errorMessage: `Maks antall samtidige jobber nådd (${maxConcurrent})`,
       });
       return {
         success: false,
