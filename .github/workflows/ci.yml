@@ -25,6 +25,9 @@ jobs:
       - name: Type check
         run: bun run lint
 
+      - name: Tests
+        run: bun run test
+
       - name: Security tests
         run: bun run security:test
 
