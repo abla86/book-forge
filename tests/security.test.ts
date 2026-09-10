@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { PasswordService, BookAccessControl, type AuthUser } from "../src/lib/security";
 
 const author: AuthUser = {
@@ -48,4 +49,20 @@ test("admin functions are denied to ordinary authors", () => {
 test("founder-only operations reject non-founder users", () => {
   const result = BookAccessControl.requireFounder(author);
   assert.equal(result.allowed, false);
+});
+
+test("API identity is session-derived and never trusted from x-user headers", () => {
+  const server = fs.readFileSync(new URL("../server.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(server, /headers\[\s*["']x-user-id["']\s*\]/);
+  assert.doesNotMatch(server, /headers\[\s*["']x-user-role["']\s*\]/);
+  assert.doesNotMatch(server, /headers\[\s*["']x-user-name["']\s*\]/);
+  assert.doesNotMatch(server, /headers\[\s*["']x-user-email["']\s*\]/);
+  assert.match(server, /req\.authUser\s*=\s*sanitizeUser\(user\)/);
+});
+
+test("server has a single auth-me endpoint and no legacy token fallback", () => {
+  const server = fs.readFileSync(new URL("../server.ts", import.meta.url), "utf8");
+  assert.equal((server.match(/app\.get\("\/api\/auth\/me"/g) || []).length, 1);
+  assert.doesNotMatch(server, /token\.startsWith\("token-"\)/);
+  assert.doesNotMatch(server, /userId\s*=\s*token\.replace\("token-"/);
 });
