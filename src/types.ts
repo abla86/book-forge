@@ -19,7 +19,7 @@ export interface CharacterRelationship {
   targetCharacterName: string;
   relationType: string;
   dynamic: string;
-  tensionLevel: number; // 1 to 10
+  tensionLevel: number;
 }
 
 export interface PersonalityEvolution {
@@ -167,6 +167,8 @@ export interface BookProject {
   idea: string;
   genre: string;
   tone: string;
+  description?: string;
+  settings?: Record<string, unknown>;
   lengthLabel: string;
   targetWords: number;
   currentWords?: number;
