@@ -14,9 +14,20 @@ test("password hashing never stores plaintext and verifies correctly", () => {
   const password = "A-long-development-password-2026!";
   const hash = PasswordService.hash(password);
   assert.notEqual(hash, password);
-  assert.match(hash, /^scrypt\$/);
+  assert.match(hash, /^scrypt\$\d+\$\d+\$\d+\$/);
+  assert.equal(hash.split("$").length, 6);
   assert.equal(PasswordService.verify(password, hash), true);
   assert.equal(PasswordService.verify("wrong-password", hash), false);
+});
+
+test("password verification rejects malformed hashes", () => {
+  assert.equal(PasswordService.verify("A-long-development-password-2026!", "not-a-valid-hash"), false);
+  assert.equal(PasswordService.verify("A-long-development-password-2026!", "scrypt$1$2$3$salt$hash"), false);
+});
+
+test("password hashing enforces the password length policy", () => {
+  assert.throws(() => PasswordService.hash("too-short"));
+  assert.equal(PasswordService.verify("too-short", PasswordService.hash("A-long-development-password-2026!")), false);
 });
 
 test("author cannot access another user's project", () => {
@@ -31,5 +42,10 @@ test("author can access their own project", () => {
 
 test("admin functions are denied to ordinary authors", () => {
   const result = BookAccessControl.validateAccess(author, "author-1", "admin");
+  assert.equal(result.allowed, false);
+});
+
+test("founder-only operations reject non-founder users", () => {
+  const result = BookAccessControl.requireFounder(author);
   assert.equal(result.allowed, false);
 });
