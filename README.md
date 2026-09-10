@@ -2,21 +2,23 @@
 
 > A production-minded AI-assisted book development platform for planning, writing, reviewing, versioning and exporting complete books.
 
-## Why this project
+## Overview
 
-BookForge AI explores how generative AI can support a structured writing workflow without treating a book as a collection of disconnected text fragments. The application models a book as a persistent project with chapters, characters, continuity rules, versions and exportable assets.
+BookForge AI treats a book as a persistent project rather than a collection of disconnected AI prompts. The platform combines structured story planning, a Story Bible, chapter generation, continuity auditing, version history, creative assets and controlled AI access behind a server-side API boundary.
 
 ## Core capabilities
 
-- **Book planning** — structured project setup, genre and tone selection, chapter planning and story context.
-- **Full-book generation** — chapter-oriented generation rather than isolated prompts.
-- **Story Bible** — persistent characters, world details and project context.
-- **Continuity auditing** — detects potential inconsistencies across the project.
-- **Version history** — keeps project changes traceable.
-- **Library and export** — manages generated material and prepares book assets for export.
-- **AI integration** — Google Gemini integration through a server-side API boundary.
-- **Authentication and roles** — session-based access control and role-aware features.
-- **Audit and cost controls** — audit logging, rate limiting, cost guarding and an emergency kill switch.
+- **Book planning** — structured project setup, genre, tone, audience, POV and chapter planning.
+- **Full-book generation** — chapter-oriented generation with persistent jobs and resumable workflows.
+- **Story Bible** — characters, locations, timeline and continuity rules kept as project context.
+- **Continuity auditing** — deterministic rule-based analysis with optional AI-assisted review.
+- **Character development** — AI-assisted character journey and arc analysis.
+- **Version history** — snapshots, rollback, chapter-level reversion and version diffs.
+- **Creative assets** — covers, illustrations and character assets through a dedicated engine.
+- **AI integration** — Google Gemini through a server-side API boundary; API keys are never sent to the browser.
+- **Authentication and RBAC** — server-side sessions with FOUNDER, ADMIN, AUTHOR and READER roles.
+- **Security controls** — secure cookies, password hashing, project isolation, rate limiting, cost guarding, audit logging and an emergency kill switch.
+- **Persistence** — PostgreSQL support for production with a disk-backed development adapter.
 
 ## Architecture
 
@@ -24,36 +26,50 @@ BookForge AI explores how generative AI can support a structured writing workflo
 React + TypeScript
         |
         v
-  Express API layer
+  Express API boundary
         |
-   +----+-------------------+
-   |                        |
-   v                        v
-BookForge engines        Security layer
-   |                        |
-   +----+-------------+----+
-        |             |
-        v             v
- Persistence       Gemini API
+   +----+----------------------+
+   |                           |
+   v                           v
+Domain engines             Security layer
+   |                           |
+   +-----------+---------------+
+               |
+               v
+        Persistence adapter
+          /           \
+         v             v
+   PostgreSQL      Local disk
+               |
+               v
+          Gemini API
 ```
 
-The application separates the UI, API boundary, domain engines, persistence and security concerns. Key engines include the Story Bible, full-book generation, continuity analysis, versioning and asset handling.
+Key engines include:
+
+- Story Bible / context management
+- Full-book generation and recovery
+- Continuity analysis
+- Versioning and rollback
+- Creative asset generation
+- Cost and operational controls
 
 See [`assets/architecture.svg`](assets/architecture.svg) for the visual architecture overview.
 
 ## Security-first design
 
-Security is treated as part of the application architecture rather than an afterthought.
+Security is implemented as an application concern, not only as documentation.
 
-- API routes default to protected access, with an explicit public allow-list.
-- Server-side sessions are used for authenticated access.
-- Passwords are handled through a dedicated password service.
-- Security headers are applied at the HTTP layer.
-- Rate limiting and cost controls help protect expensive AI operations.
-- Audit logging supports traceability.
-- An emergency kill switch can disable sensitive operations.
-- Secrets are supplied through environment variables; `.env` files are excluded from source control.
-- Dedicated security tests are included in the project test suite.
+- Protected API routes use a **deny-by-default** authentication gate.
+- Identity is derived from a **validated server-side session**, not client-supplied identity headers.
+- Session cookies are `HttpOnly`, `SameSite=Strict` and use the `__Host-` prefix in production.
+- Passwords use **scrypt** with per-password random salts and constant-time verification.
+- Project operations enforce owner/role isolation on the server.
+- AI generation is guarded by rate limits, cost budgets and an emergency kill switch.
+- Security-relevant actions are written to an audit log.
+- Security headers include CSP-adjacent browser hardening headers, frame protection, MIME sniffing protection and production HSTS.
+- Secrets are supplied through environment variables; real credentials must never be committed.
+- Regression tests cover password handling, RBAC and authentication trust boundaries.
 
 ## Technology
 
@@ -61,39 +77,53 @@ Security is treated as part of the application architecture rather than an after
 |---|---|
 | Frontend | React 19, TypeScript, Vite |
 | Backend | Node.js, Express, TypeScript |
-| AI | Google Gemini API |
-| Data | PostgreSQL |
+| AI | Google Gemini API (`gemini-3.8-flash`) |
+| Data | PostgreSQL + development persistence adapter |
 | UI | Tailwind CSS, Framer Motion, Lucide |
 | Documents | PDF-lib, JSZip |
 | Testing | Node test runner + TypeScript/tsx |
 | Tooling | Bun lockfile, npm-compatible scripts |
+| CI | GitHub Actions |
 
 ## Local development
 
 ### Requirements
 
 - Node.js 20+
-- PostgreSQL
-- Gemini API credentials for AI features
+- Bun (recommended because the repository contains `bun.lock`)
+- PostgreSQL for production-style persistence
+- Gemini API credentials for AI generation features
 
 ### Setup
 
 ```bash
-npm install
+bun install --frozen-lockfile
 cp .env.example .env
-npm run dev
+bun run dev
 ```
 
-The application runs through the Express/Vite development server.
+For local development, the persistence adapter can operate without PostgreSQL and stores development state under `data/`. That directory is ignored by Git.
 
 ### Quality checks
 
 ```bash
-npm run lint
-npm test
-npm run security:test
-npm run build
+bun run lint
+bun run test
+bun run security:test
+bun run build
 ```
+
+## Configuration
+
+See `.env.example` for the required configuration shape:
+
+- `GEMINI_API_KEY` — Gemini API credential.
+- `GEMINI_MODEL` — optional model override; defaults to `gemini-3.8-flash`.
+- `FOUNDER_PASSWORD` — initial founder password, supplied only through a secret manager.
+- `DATABASE_URL` — production PostgreSQL connection string.
+- `APP_URL` — deployment URL where required by the hosting environment.
+
+Never commit a real `.env` file or production credentials.
 
 ## Project structure
 
@@ -103,14 +133,16 @@ book-forge/
 │   ├── components/       # UI components and application views
 │   ├── lib/
 │   │   ├── engine/       # domain engines
-│   │   ├── security/     # authentication and security services
-│   │   └── db/            # persistence
-│   ├── data/             # initial project data
+│   │   ├── security.ts   # authentication, RBAC and security services
+│   │   └── db.ts         # persistence adapter
 │   └── types/            # shared TypeScript models
-├── tests/                # automated tests
+├── tests/                # automated regression/security tests
 ├── public/               # static assets
-├── schema.sql            # database schema
+├── assets/               # architecture and portfolio visuals
+├── schema.sql            # PostgreSQL schema
 ├── server.ts             # Express/Vite server and API boundary
+├── package.json          # scripts and dependencies
+├── bun.lock              # reproducible Bun dependency lockfile
 └── vite.config.ts        # Vite configuration
 ```
 
@@ -121,16 +153,17 @@ This project demonstrates practical work across:
 - AI application architecture
 - Full-stack TypeScript
 - REST API design
-- PostgreSQL persistence
 - Authentication and authorization
 - Security engineering
+- PostgreSQL persistence
+- Long-running AI workflows and recovery
 - Automated testing
-- Document generation
-- Versioning and auditability
-- UX for complex workflows
+- Cost controls and auditability
+- Document and asset generation
+- UX for complex creative workflows
 
 ## Status
 
 **Portfolio project — active development.**
 
-The repository is intentionally structured as a serious engineering project, with security, persistence, testing and maintainability considered alongside the user interface.
+The repository is structured as a serious engineering project, with security, persistence, testing and maintainability treated as first-class concerns alongside the user experience.
