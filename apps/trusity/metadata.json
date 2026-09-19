@@ -1,0 +1,6 @@
+{
+  "name": "Trusity - AI Presentation Generator",
+  "description": "Turn raw business ideas into polished, investor-ready pitch decks powered by AI with 7 themes, 15+ slide layouts, and multiple export formats.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
