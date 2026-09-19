@@ -250,7 +250,7 @@ export interface BookGenerationJob {
   id: string;
   projectId: string;
   status: "queued" | "running" | "completed" | "failed" | "cancelled";
-  phase: "specification" | "bible" | "blueprints" | "writing" | "audit" | "repair" | "completed" | "failed";
+  phase: "needs-review" | "specification" | "bible" | "blueprints" | "writing" | "audit" | "repair" | "completed" | "failed";
   totalChapters: number;
   completedChapters: number;
   totalWords: number;

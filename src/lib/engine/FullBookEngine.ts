@@ -340,7 +340,7 @@ export class FullBookEngineService {
 
       let blueprints: ChapterBlueprint[] = checkpoint?.blueprints || [];
       if (blueprints.length === 0) {
-        blueprints = await this.generateChapterBlueprints(spec, bibleData, aiClient, user, projectId);
+        blueprints = await this.generateChapterBlueprints(spec, bibleData as Record<string, unknown>, aiClient, user, projectId);
       }
       if (tracker.cancelRequested) throw new Error("Generering avbrutt av bruker.");
 

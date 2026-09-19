@@ -233,7 +233,7 @@ app.post("/api/books", (req, res) => {
   const data = req.body ?? {};
   if (typeof data.title !== "string" || !data.title.trim() || data.title.length > 300) return res.status(400).json({ error: "Boktittel er påkrevd og må være kortere enn 300 tegn." });
   const now = new Date().toISOString();
-  const book: BookProject = { id: `book-${crypto.randomUUID()}`, ownerId: user.id, title: data.title.trim(), author: typeof data.author === "string" ? data.author.slice(0, 200) : user.name, genre: typeof data.genre === "string" ? data.genre.slice(0, 100) : undefined, description: typeof data.description === "string" ? data.description.slice(0, 5000) : undefined, chapters: Array.isArray(data.chapters) ? data.chapters : [], settings: data.settings && typeof data.settings === "object" ? data.settings : undefined, createdAt: now, updatedAt: now };
+  const book: BookProject = { id: `book-${crypto.randomUUID()}`, ownerId: user.id, idea: "", tone: "", lengthLabel: "", targetWords: 0, targetChapters: 0, synopsis: "", coverStyle: "", phase: "setup", progress: 0, activeChapter: 0, acts: 3, pov: "", ending: "", characters: [], locations: [], timeline: [], continuityRules: [], covers: [], title: data.title.trim(), author: typeof data.author === "string" ? data.author.slice(0, 200) : user.name, genre: typeof data.genre === "string" ? data.genre.slice(0, 100) : "", description: typeof data.description === "string" ? data.description.slice(0, 5000) : undefined, chapters: Array.isArray(data.chapters) ? data.chapters : [], settings: data.settings && typeof data.settings === "object" ? data.settings : undefined, createdAt: now, updatedAt: now };
   db.saveProject(book);
   AuditLogger.log({ actorId: user.id, actorRole: user.role, action: "CREATE_PROJECT", projectId: book.id, status: "SUCCESS" });
   return res.json(book);
@@ -363,7 +363,8 @@ app.post("/api/assets/generate", async (req, res) => {
   const check = projectAccess(user, project, "write");
   if (!check.allowed) return res.status(403).json({ error: check.reason });
   try {
-    const asset = await AssetEngine.getInstance().generateAsset(project, { projectId: project.id, type: String(body.type).slice(0, 50), title: String(body.title).slice(0, 300), customPrompt: typeof body.customPrompt === "string" ? body.customPrompt.slice(0, 5000) : undefined, chapterNumber: Number.isFinite(Number(body.chapterNumber)) ? Number(body.chapterNumber) : undefined, characterName: typeof body.characterName === "string" ? body.characterName.slice(0, 200) : undefined, aspectRatio: typeof body.aspectRatio === "string" ? body.aspectRatio.slice(0, 30) : undefined }, getGeminiClient(), user);
+    if (!["cover_front","cover_back","illustration","character_portrait","map"].includes(String(body.type))) return res.status(400).json({ error: "Ugyldig type for visuelt element." });
+    const asset = await AssetEngine.getInstance().generateAsset(project, { projectId: project.id, type: String(body.type) as NonNullable<BookProject["assets"]>[number]["type"], title: String(body.title).slice(0, 300), customPrompt: typeof body.customPrompt === "string" ? body.customPrompt.slice(0, 5000) : undefined, chapterNumber: Number.isFinite(Number(body.chapterNumber)) ? Number(body.chapterNumber) : undefined, characterName: typeof body.characterName === "string" ? body.characterName.slice(0, 200) : undefined, aspectRatio: typeof body.aspectRatio === "string" ? body.aspectRatio.slice(0, 30) : undefined }, getGeminiClient(), user);
     AuditLogger.log({ actorId: user.id, actorRole: user.role, action: "GENERATE_ASSET", projectId: project.id, status: "SUCCESS", metadata: { assetId: asset.id } });
     return res.json(asset);
   } catch (error: unknown) { return res.status(500).json({ error: error instanceof Error ? error.message : "Kunne ikke generere visuelt element." }); }
@@ -375,7 +376,7 @@ app.get("/api/assets/project/:projectId", (req, res) => {
   if (!project) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
   const check = projectAccess(user, project, "read");
   if (!check.allowed) return res.status(403).json({ error: check.reason });
-  return res.json(db.getAssetsForProject(req.params.projectId));
+  return res.json(db.getAssets(req.params.projectId));
 });
 
 app.get("/api/assets/:id", (req, res) => {
