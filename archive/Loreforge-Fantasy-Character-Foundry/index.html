@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚔️ Fantasy Character Forge</title>
+  <style>
+    :root {
+      --bg-color: #1a1033;
+      --bg-card: #241944;
+      --accent-purple: #6d4aff;
+      --accent-purple-hover: #8262ff;
+      --accent-gold: #f59e0b;
+      --text-main: #f1f5f9;
+      --text-muted: #a5b4fc;
+      --border-glow: rgba(109, 74, 255, 0.45);
+      --card-shadow: 0 10px 35px -5px rgba(0, 0, 0, 0.6), 0 0 25px rgba(109, 74, 255, 0.25);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      background-image: radial-gradient(circle at 50% 20%, rgba(109, 74, 255, 0.18) 0%, transparent 65%);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 520px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      text-align: center;
+      color: #ffffff;
+      text-shadow: 0 0 16px rgba(109, 74, 255, 0.6);
+      letter-spacing: -0.5px;
+    }
+
+    .counter-display {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      background: rgba(36, 25, 68, 0.8);
+      padding: 6px 16px;
+      border-radius: 9999px;
+      border: 1px solid rgba(109, 74, 255, 0.3);
+    }
+
+    .counter-display span {
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    .btn-summon {
+      width: 100%;
+      background: linear-gradient(135deg, var(--accent-purple), #4f2cd9);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 16px 28px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      border-radius: 14px;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(109, 74, 255, 0.45);
+      transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
+      letter-spacing: 0.5px;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    }
+
+    .btn-summon:hover {
+      filter: brightness(1.15);
+      transform: scale(1.02);
+      box-shadow: 0 8px 25px rgba(109, 74, 255, 0.6);
+    }
+
+    .btn-summon:active {
+      transform: scale(0.99);
+    }
+
+    .character-card {
+      width: 100%;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-glow);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: var(--card-shadow);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .character-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent-purple), transparent);
+    }
+
+    .portrait-wrapper {
+      width: 220px;
+      height: 220px;
+      border-radius: 16px;
+      background-color: #120924;
+      border: 2px dashed rgba(109, 74, 255, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .portrait-wrapper.has-portrait {
+      border-style: solid;
+      border-color: var(--accent-purple);
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+    }
+
+    .portrait-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+
+    .portrait-placeholder {
+      color: #716299;
+      font-size: 0.85rem;
+      padding: 16px;
+      line-height: 1.4;
+    }
+
+    .portrait-placeholder svg {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 8px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+    }
+
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(18, 9, 36, 0.82);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid rgba(109, 74, 255, 0.3);
+      border-top-color: #f59e0b;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .character-info {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .character-name {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.2;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+      min-height: 34px;
+    }
+
+    .character-class {
+      font-size: 1.15rem;
+      font-style: italic;
+      font-weight: 500;
+      color: var(--accent-purple-hover);
+      letter-spacing: 0.5px;
+      min-height: 24px;
+    }
+
+    .character-tag {
+      display: inline-block;
+      align-self: center;
+      margin-top: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 3px 10px;
+      border-radius: 6px;
+      background: rgba(109, 74, 255, 0.15);
+      color: #c7d2fe;
+      border: 1px solid rgba(109, 74, 255, 0.3);
+    }
+
+    .portrait-buttons {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .btn-portrait {
+      flex: 1;
+      padding: 13px 18px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 12px;
+      cursor: pointer;
+      border: 1px solid rgba(109, 74, 255, 0.5);
+      background-color: rgba(109, 74, 255, 0.2);
+      color: #ffffff;
+      transition: transform 0.2s ease, filter 0.2s ease, background-color 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-portrait:hover:not(:disabled) {
+      filter: brightness(1.2);
+      transform: scale(1.03);
+      background-color: var(--accent-purple);
+      box-shadow: 0 4px 15px rgba(109, 74, 255, 0.4);
+    }
+
+    .btn-portrait:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .btn-portrait:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      filter: grayscale(0.5);
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    .status-msg {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      min-height: 18px;
+      text-align: center;
+    }
+
+    @media (max-width: 480px) {
+      header h1 {
+        font-size: 1.6rem;
+      }
+      .portrait-buttons {
+        flex-direction: column;
+      }
+      .portrait-wrapper {
+        width: 180px;
+        height: 180px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>⚔️ Fantasy Character Forge</h1>
+    </header>
+
+    <div class="counter-display" id="counter-display">
+      Characters summoned: <span id="summon-count">0</span>
+    </div>
+
+    <button id="summon-btn" class="btn-summon" type="button">
+      Summon Character
+    </button>
+
+    <div class="character-card" id="character-card">
+      <div class="portrait-wrapper" id="portrait-wrapper">
+        <div class="portrait-placeholder" id="portrait-placeholder">
+          <svg viewBox="0 0 24 24">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <div>Portrait will appear here</div>
+        </div>
+        <img id="portrait-img" class="portrait-img" alt="Character Portrait" />
+        <div class="loading-overlay" id="loading-overlay">
+          <div class="spinner"></div>
+          <span id="loading-text">Forging Portrait...</span>
+        </div>
+      </div>
+
+      <div class="character-info">
+        <div id="character-name" class="character-name">Awaiting Summon...</div>
+        <div id="character-class" class="character-class">Press Summon Character to begin</div>
+        <div id="character-tag" class="character-tag" style="display: none;">Ready</div>
+      </div>
+    </div>
+
+    <div class="portrait-buttons">
+      <button id="generate-portrait-btn" class="btn-portrait" type="button" disabled>
+        🎨 Generate Portrait
+      </button>
+      <button id="regenerate-portrait-btn" class="btn-portrait" type="button" disabled>
+        ⚡ Regenerate Portrait
+      </button>
+    </div>
+
+    <div id="status-msg" class="status-msg"></div>
+  </div>
+
+  <script>
+    (function () {
+      // Data pools with at least 8 unique first names and 8 unique surnames
+      const FIRST_NAMES = [
+        'Aelric',
+        'Seraphine',
+        'Kaelen',
+        'Morgath',
+        'Lyra',
+        'Theron',
+        'Vespera',
+        'Gideon',
+        'Valerius',
+        'Brynn',
+        'Zephyr',
+        'Isolde'
+      ];
+
+      const SURNAMES = [
+        'Duskwind',
+        'Emberfall',
+        'Shadowstep',
+        'Ironbreaker',
+        'Stormborn',
+        'Voidwalker',
+        'Silverleaf',
+        'Bloodfang',
+        'Moonwhisper',
+        'Frostveil',
+        'Sunshard',
+        'Ravenshield'
+      ];
+
+      const CLASSES = [
+        'Mage',
+        'Rogue',
+        'Warrior',
+        'Ranger',
+        'Paladin',
+        'Necromancer'
+      ];
+
+      // State tracking
+      let summonedCount = 0;
+      let currentCharacter = null;
+      let lastGeneratedKey = '';
+      let portraitVariation = 1;
+
+      // DOM Elements
+      const summonBtn = document.getElementById('summon-btn');
+      const summonCountEl = document.getElementById('summon-count');
+      const characterNameEl = document.getElementById('character-name');
+      const characterClassEl = document.getElementById('character-class');
+      const characterTagEl = document.getElementById('character-tag');
+      const generatePortraitBtn = document.getElementById('generate-portrait-btn');
+      const regeneratePortraitBtn = document.getElementById('regenerate-portrait-btn');
+      const portraitWrapper = document.getElementById('portrait-wrapper');
+      const portraitImg = document.getElementById('portrait-img');
+      const portraitPlaceholder = document.getElementById('portrait-placeholder');
+      const loadingOverlay = document.getElementById('loading-overlay');
+      const loadingText = document.getElementById('loading-text');
+      const statusMsg = document.getElementById('status-msg');
+
+      function getRandomItem(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+      }
+
+      // Generate a character ensuring name + class never repeats back-to-back
+      function generateUniqueCharacter() {
+        let name = '';
+        let charClass = '';
+        let key = '';
+
+        do {
+          const firstName = getRandomItem(FIRST_NAMES);
+          const surname = getRandomItem(SURNAMES);
+          name = firstName + ' ' + surname;
+          charClass = getRandomItem(CLASSES);
+          key = name + '::' + charClass;
+        } while (key === lastGeneratedKey);
+
+        lastGeneratedKey = key;
+        return { name: name, class: charClass };
+      }
+
+      // Summon click handler
+      summonBtn.addEventListener('click', function () {
+        currentCharacter = generateUniqueCharacter();
+        summonedCount++;
+        portraitVariation = 1;
+
+        // Update Counter
+        summonCountEl.textContent = summonedCount;
+
+        // Display Name in large bold text and Class in italic below it
+        characterNameEl.textContent = currentCharacter.name;
+        characterClassEl.textContent = currentCharacter.class;
+        characterTagEl.style.display = 'inline-block';
+        characterTagEl.textContent = 'Hero Summoned';
+
+        // Reset and enable portrait controls
+        portraitPlaceholder.style.display = 'none';
+        portraitImg.style.display = 'none';
+        portraitWrapper.classList.remove('has-portrait');
+        generatePortraitBtn.disabled = false;
+        regeneratePortraitBtn.disabled = false;
+
+        statusMsg.textContent = 'Character summoned! Click "Generate Portrait" for artwork.';
+
+        // Immediately auto-fetch an initial portrait for great user experience
+        fetchAndDisplayPortrait(false);
+      });
+
+      // Portrait button handlers
+      generatePortraitBtn.addEventListener('click', function () {
+        if (!currentCharacter) return;
+        fetchAndDisplayPortrait(false);
+      });
+
+      regeneratePortraitBtn.addEventListener('click', function () {
+        if (!currentCharacter) return;
+        portraitVariation++;
+        fetchAndDisplayPortrait(true);
+      });
+
+      // Procedural fallback artwork renderer in cartoon / video game style
+      function generateProceduralCartoonPortrait(name, charClass, variant) {
+        const palettes = {
+          Mage: { bg1: '#311042', bg2: '#5b1875', accent: '#c084fc', gear: '🔮 Arcane Robes & Crystal Staff' },
+          Rogue: { bg1: '#111827', bg2: '#1f2937', accent: '#34d399', gear: '🗡️ Shadow Hood & Daggers' },
+          Warrior: { bg1: '#3f1212', bg2: '#7f1d1d', accent: '#f87171', gear: '⚔️ Knight Armor & Broadsword' },
+          Ranger: { bg1: '#062c1d', bg2: '#065f46', accent: '#6ee7b7', gear: '🏹 Forest Cloak & Longbow' },
+          Paladin: { bg1: '#3a2505', bg2: '#78350f', accent: '#fbbf24', gear: '🛡️ Radiant Armor & Sacred Hammer' },
+          Necromancer: { bg1: '#1e082f', bg2: '#3b0764', accent: '#a855f7', gear: '💀 Skull Regalia & Soul Flame' }
+        };
+
+        const theme = palettes[charClass] || { bg1: '#1e1b4b', bg2: '#3730a3', accent: '#818cf8', gear: '✨ Adventurer Gear' };
+        const seedVal = (name.length * 17 + variant * 31 + charClass.length * 7) % 360;
+
+        // Custom stylized SVG with crisp outlines, cartoon video game hero emblem
+        const svgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+          <defs>
+            <radialGradient id="bgGrad" cx="50%" cy="40%" r="65%">
+              <stop offset="0%" stop-color="${theme.bg2}" />
+              <stop offset="100%" stop-color="${theme.bg1}" />
+            </radialGradient>
+            <linearGradient id="armorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="${theme.accent}" />
+              <stop offset="100%" stop-color="#1e1035" />
+            </linearGradient>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="5" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          <!-- Background Canvas -->
+          <rect width="240" height="240" rx="16" fill="url(#bgGrad)" />
+          
+          <!-- Outer border -->
+          <rect x="3" y="3" width="234" height="234" rx="14" fill="none" stroke="${theme.accent}" stroke-width="2" opacity="0.6"/>
+
+          <!-- Character Silhouette / Stylized Avatar Body -->
+          <circle cx="120" cy="92" r="42" fill="#ffd1b3" stroke="#2a1b40" stroke-width="4"/>
+          
+          <!-- Cartoon Hair / Cowl based on variation and class -->
+          <path d="M78 92 C78 52, 162 52, 162 92 C150 82, 138 78, 120 78 C102 78, 90 82, 78 92 Z" fill="#2d1d44" />
+
+          <!-- Eyes in Cartoon Anime style -->
+          <ellipse cx="106" cy="94" rx="5" ry="7" fill="#1e1035"/>
+          <ellipse cx="134" cy="94" rx="5" ry="7" fill="#1e1035"/>
+          <circle cx="108" cy="92" r="2" fill="#ffffff"/>
+          <circle cx="136" cy="92" r="2" fill="#ffffff"/>
+
+          <!-- Smile / Expression -->
+          <path d="M112 110 Q120 118 128 110" fill="none" stroke="#6b21a8" stroke-width="3" stroke-linecap="round"/>
+
+          <!-- Body / Shoulders -->
+          <path d="M60 205 C60 148, 180 148, 180 205 Z" fill="url(#armorGrad)" stroke="#1a1033" stroke-width="4"/>
+          
+          <!-- Class Crest / Sigil on Chest -->
+          <circle cx="120" cy="178" r="16" fill="#120924" stroke="${theme.accent}" stroke-width="3" filter="url(#glow)"/>
+          <text x="120" y="184" font-size="16" text-anchor="middle" fill="#ffffff" font-family="sans-serif">
+            ${charClass === 'Mage' ? '✦' : charClass === 'Rogue' ? '🗡' : charClass === 'Warrior' ? '🛡' : charClass === 'Ranger' ? '🏹' : charClass === 'Paladin' ? '⚡' : '💀'}
+          </text>
+
+          <!-- Class Ribbon Banner at bottom -->
+          <rect x="20" y="206" width="200" height="24" rx="6" fill="#0f0721" stroke="${theme.accent}" stroke-width="1.5"/>
+          <text x="120" y="222" font-size="11" font-weight="bold" text-anchor="middle" fill="${theme.accent}" font-family="sans-serif" letter-spacing="1">
+            ${charClass.toUpperCase()} • V${variant}
+          </text>
+        </svg>`;
+
+        return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgString);
+      }
+
+      // Fetch portrait: calls server API (Gemini / Imagen) with reliable cartoon fallback
+      function fetchAndDisplayPortrait(isRegen) {
+        if (!currentCharacter) return;
+
+        generatePortraitBtn.disabled = true;
+        regeneratePortraitBtn.disabled = true;
+        loadingOverlay.style.display = 'flex';
+        loadingText.textContent = isRegen ? 'Regenerating Variation...' : 'Forging Portrait...';
+        statusMsg.textContent = 'Generating cartoon / video-game portrait for ' + currentCharacter.name + '...';
+
+        const seed = 'v' + portraitVariation + '-' + Date.now();
+
+        fetch('/api/generate-portrait', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: currentCharacter.name,
+            class: currentCharacter.class,
+            seed: seed
+          })
+        })
+        .then(function (res) {
+          if (!res.ok) throw new Error('Network error: ' + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          const imgUrl = data.imageUrl || generateProceduralCartoonPortrait(currentCharacter.name, currentCharacter.class, portraitVariation);
+          applyPortraitImage(imgUrl, isRegen);
+        })
+        .catch(function (err) {
+          console.warn('Using self-contained cartoon portrait generator:', err);
+          const fallbackUrl = generateProceduralCartoonPortrait(currentCharacter.name, currentCharacter.class, portraitVariation);
+          applyPortraitImage(fallbackUrl, isRegen);
+        })
+        .finally(function () {
+          loadingOverlay.style.display = 'none';
+          generatePortraitBtn.disabled = false;
+          regeneratePortraitBtn.disabled = false;
+        });
+      }
+
+      function applyPortraitImage(src, isRegen) {
+        portraitImg.onload = function () {
+          portraitPlaceholder.style.display = 'none';
+          portraitImg.style.display = 'block';
+          portraitWrapper.classList.add('has-portrait');
+          statusMsg.textContent = isRegen
+            ? 'Portrait regenerated! Variation ' + portraitVariation + ' active.'
+            : 'Cartoon / video-game style portrait ready.';
+        };
+        portraitImg.onerror = function () {
+          const fallbackSvg = generateProceduralCartoonPortrait(currentCharacter.name, currentCharacter.class, portraitVariation);
+          portraitImg.src = fallbackSvg;
+          portraitPlaceholder.style.display = 'none';
+          portraitImg.style.display = 'block';
+          portraitWrapper.classList.add('has-portrait');
+        };
+        portraitImg.src = src;
+      }
+    })();
+  </script>
+</body>
+</html>
