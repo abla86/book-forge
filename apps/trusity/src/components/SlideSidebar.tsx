@@ -124,7 +124,7 @@ export const SlideSidebar: React.FC<SlideSidebarProps> = ({
 
                   {/* Indicators for annotations & visuals */}
                   {hasDrawings && (
-                    <PenTool className="w-3 h-3 text-red-400" title="Has drawing annotations" />
+                    <span title="Has drawing annotations"><PenTool className="w-3 h-3 text-red-400" /></span>
                   )}
                   {hasStickyNotes && (
                     <span
@@ -136,10 +136,7 @@ export const SlideSidebar: React.FC<SlideSidebarProps> = ({
                     </span>
                   )}
                   {(s.metadata?.visualAsset || s.content.visualAsset) && (
-                    <ImageIcon
-                      className="w-3 h-3 text-purple-400"
-                      title="Has visual asset / stock photography"
-                    />
+                    <span title="Has visual asset / stock photography"><ImageIcon className="w-3 h-3 text-purple-400" /></span>
                   )}
                 </div>
 

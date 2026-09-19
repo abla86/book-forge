@@ -125,6 +125,11 @@ See `.env.example` for the required configuration shape:
 
 Never commit a real `.env` file or production credentials.
 
+## Modules and history
+
+- `apps/trusity/` – **Trusity**, AI presentation generator (own `package.json`, own CI: `.github/workflows/trusity.yml`). Active module of the creative/content platform.
+- `archive/` – merged former repositories with full git history: `BookForge-AI`, `Bookplattform`, `Loreforge-Fantasy-Character-Foundry`. Not part of the build; excluded from typecheck and CI scans.
+
 ## Project structure
 
 ```text

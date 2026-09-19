@@ -353,7 +353,7 @@ export default function App() {
         slides: updatedSlides,
       };
       setPlan(newPlan);
-      broadcastDeckUpdate(newPlan);
+      broadcastDeckUpdate(newPlan, activeSlideIndex);
       showToast('Visual backdrop applied across all slides in deck');
       return;
     }
@@ -382,7 +382,7 @@ export default function App() {
     };
 
     setPlan(newPlan);
-    broadcastDeckUpdate(newPlan);
+    broadcastDeckUpdate(newPlan, activeSlideIndex);
     showToast(asset ? 'Visual applied to slide' : 'Visual removed from slide');
   };
 

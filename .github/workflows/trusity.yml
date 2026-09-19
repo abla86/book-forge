@@ -1,0 +1,34 @@
+name: Trusity
+
+on:
+  push:
+    paths: ["apps/trusity/**", ".github/workflows/trusity.yml"]
+  pull_request:
+    paths: ["apps/trusity/**", ".github/workflows/trusity.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  trusity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/trusity
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Typecheck
+        run: npm run lint
+      - name: Build
+        run: npm run build
+      - name: Server smoke test
+        run: |
+          NODE_ENV=production PORT=3057 node dist/server.cjs &
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:3057/api/health && exit 0; sleep 1; done
+          echo "Trusity server did not become healthy"; exit 1

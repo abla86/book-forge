@@ -276,7 +276,7 @@ export const ImageStudioModal: React.FC<ImageStudioModalProps> = ({
                   AI Visual & Stock Photo Studio
                 </h2>
                 <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Slide {slide.slideNumber || 'Active'}
+                  Slide: {slide.content.headline || 'Active'}
                 </span>
               </div>
               <p className="text-xs text-slate-400 truncate max-w-md sm:max-w-xl">
@@ -931,7 +931,7 @@ export const ImageStudioModal: React.FC<ImageStudioModalProps> = ({
                         {caption && placement === 'hero_background' && (
                           <span className="truncate max-w-[160px] opacity-70">{caption}</span>
                         )}
-                        <span>Slide {slide.slideNumber || '1'}</span>
+                        <span>Slide: {slide.content.headline || '1'}</span>
                       </div>
                     </div>
                   </div>
