@@ -64,7 +64,7 @@ function projectAccess(user: AuthUser, project: BookProject, action: "read" | "w
 }
 
 app.disable("x-powered-by");
-app.set("trust proxy", 1);
+app.set("trust proxy", process.env.TRUST_PROXY === "true" ? 1 : false);
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -74,7 +74,7 @@ app.use((_req, res, next) => {
   if (isProduction) res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
 });
-app.use(express.json({ limit: "15mb" }));
+app.use(express.json({ limit: "2mb" }));
 
 if (process.env.FOUNDER_PASSWORD) {
   const founder = db.getUsers().find((user) => user.role === "FOUNDER");
