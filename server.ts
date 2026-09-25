@@ -64,7 +64,7 @@ function projectAccess(user: AuthUser, project: BookProject, action: "read" | "w
 }
 
 app.disable("x-powered-by");
-app.set("trust proxy", 1);
+app.set("trust proxy", process.env.TRUST_PROXY === "true" ? 1 : false);
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -74,7 +74,7 @@ app.use((_req, res, next) => {
   if (isProduction) res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
 });
-app.use(express.json({ limit: "15mb" }));
+app.use(express.json({ limit: "2mb" }));
 
 if (process.env.FOUNDER_PASSWORD) {
   const founder = db.getUsers().find((user) => user.role === "FOUNDER");
@@ -460,12 +460,20 @@ app.post("/api/book/generate-character-journey", async (req, res) => {
   if (!check.allowed) return res.status(403).json({ error: check.reason });
   const ai = getGeminiClient();
   if (!ai) return res.status(503).json({ error: "GEMINI_API_KEY er ikke konfigurert." });
+  const jobId = `job-character-journey-${crypto.randomUUID()}`;
+  const slot = RateLimiter.acquireJobSlot(user, jobId, "GENERATE_CHARACTER_JOURNEY");
+  if (!slot.success) return res.status(429).json({ error: slot.error });
   try {
+    CostGuard.checkBudget(user, project.id);
     const c = body.character;
     const prompt = `Du er en prisvinnende forfattercoach og dramaturg. Generer en dyp, psykologisk innsiktsfull narrativ oppsummering av karakterens utviklingsreise på levende, presist litterært norsk, ca. 140-200 ord.\nBoktittel: ${String(body.bookTitle || project.title).slice(0, 300)}\nKarakternavn: ${String(c.name || "Ukjent").slice(0, 200)}\nRolle: ${String(c.role || "").slice(0, 500)}\nArketype: ${String(c.archetype || "").slice(0, 500)}\nMål: ${String(c.goal || "").slice(0, 1000)}\nBakgrunn: ${String(c.background || "").slice(0, 2000)}\nStemme: ${String(c.voice || "").slice(0, 1000)}\nHemmeligheter: ${String(c.secrets || "").slice(0, 2000)}\nIndre motivasjon: ${String(c.motivationInternal || "Uspesifisert").slice(0, 1000)}\nYtre motivasjon: ${String(c.motivationExternal || "Uspesifisert").slice(0, 1000)}\nIndre konflikt: ${String(c.internalConflict || "Uspesifisert").slice(0, 1000)}\nYtre konflikt: ${String(c.externalConflict || "Uspesifisert").slice(0, 1000)}`;
     const response = await ai.models.generateContent({ model: AI_MODEL, contents: prompt });
-    return res.json({ journeySummary: response.text?.trim() || "Karakterreisen kunne ikke genereres." });
+    const output = response.text?.trim() || "Karakterreisen kunne ikke genereres.";
+    CostGuard.recordUsage({ userId: user.id, projectId: project.id, action: "GENERATE_CHARACTER_JOURNEY", inputTokens: Math.round(prompt.length / 4), outputTokens: Math.round(output.length / 4) });
+    AuditLogger.log({ actorId: user.id, actorRole: user.role, action: "GENERATE_CHARACTER_JOURNEY", projectId: project.id, status: "SUCCESS" });
+    return res.json({ journeySummary: output });
   } catch (error: unknown) { return res.status(500).json({ error: error instanceof Error ? error.message : "Kunne ikke generere karakterreise." }); }
+  finally { RateLimiter.releaseJobSlot(user.id, jobId); }
 });
 
 app.post("/api/book/deep-continuity-audit", async (req, res) => {
@@ -476,8 +484,12 @@ app.post("/api/book/deep-continuity-audit", async (req, res) => {
   if (!project) return res.status(404).json({ error: "Bokprosjekt ikke funnet." });
   const check = projectAccess(user, project, "read");
   if (!check.allowed) return res.status(403).json({ error: check.reason });
-  try { EmergencyKillSwitch.assertCanGenerate(); } catch (error: unknown) { return res.status(503).json({ error: error instanceof Error ? error.message : "AI stanset via Kill Switch", killSwitchActive: true }); }
+  const jobId = `job-continuity-audit-${crypto.randomUUID()}`;
+  const slot = RateLimiter.acquireJobSlot(user, jobId, "CONTINUITY_AUDIT");
+  if (!slot.success) return res.status(429).json({ error: slot.error });
+  try { EmergencyKillSwitch.assertCanGenerate(); } catch (error: unknown) { RateLimiter.releaseJobSlot(user.id, jobId); return res.status(503).json({ error: error instanceof Error ? error.message : "AI stanset via Kill Switch", killSwitchActive: true }); }
   try {
+    CostGuard.checkBudget(user, project.id);
     const bible = new BibleEngine({ title: body.bookTitle || project.title, genre: body.genre || project.genre, tone: body.tone || project.tone, characters: body.characters, locations: body.locations, timeline: body.timeline, continuityRules: body.continuityRules });
     const baseReport = ContinuityAgent.auditFullManuscript(body.chapters || [], bible.getData(), "rule_based");
     const ai = getGeminiClient();
@@ -489,6 +501,7 @@ app.post("/api/book/deep-continuity-audit", async (req, res) => {
     AuditLogger.log({ actorId: user.id, actorRole: user.role, action: "CONTINUITY_AUDIT", projectId: project.id, status: "SUCCESS", metadata: { score: result.score } });
     return res.json({ ...result, analyzedAt: new Date().toISOString() });
   } catch (error: unknown) { return res.status(500).json({ error: error instanceof Error ? error.message : "Feil ved kontinuitetsanalyse." }); }
+  finally { RateLimiter.releaseJobSlot(user.id, jobId); }
 });
 
 app.get("/api/book/versions/:projectId", (req, res) => {
