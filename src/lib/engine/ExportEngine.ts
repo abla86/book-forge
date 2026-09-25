@@ -616,7 +616,7 @@ nav#toc li { margin: 0.5em 0; }
     }
 
     const pdfBytes = await doc.save();
-    const blob = new Blob([pdfBytes], { type: "application/pdf" });
+    const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: "application/pdf" });
     const filename = `${sanitizeFilename(project.title)}.pdf`;
 
     return {
