@@ -16,7 +16,7 @@ import {
 } from "../../types";
 import { AuthUser, AuditLogger, RateLimiter, EmergencyKillSwitch } from "../security";
 import { CostGuard } from "./CostGuard";
-import { BibleEngine } from "./BibleEngine";
+import { BibleEngine, type BibleEngineInput } from "./BibleEngine";
 import { ContinuityAgent } from "./ContinuityAgent";
 import { VersionService } from "./VersionService";
 import { db } from "../db";
@@ -331,7 +331,7 @@ export class FullBookEngineService {
       }
       if (tracker.cancelRequested) throw new Error("Generering avbrutt av bruker.");
 
-      const bibleEngine = new BibleEngine(bibleData);
+      const bibleEngine = new BibleEngine(bibleData as BibleEngineInput);
 
       // -------------------------------------------------------------
       // PHASE 3: Chapter Blueprints for the Entire Book
