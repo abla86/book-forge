@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Chapter } from "../types";
 import {
   X,
@@ -41,13 +41,18 @@ export function ChapterReaderModal({
   hasPrev,
   hasNext,
 }: ChapterReaderModalProps) {
-  if (!isOpen || !chapter) return null;
-
   const [isEditing, setIsEditing] = useState(false);
-  const [editedContent, setEditedContent] = useState(chapter.content || "");
+  const [editedContent, setEditedContent] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [fontSize, setFontSize] = useState<"sm" | "base" | "lg">("base");
+
+  useEffect(() => {
+    setEditedContent(chapter?.content || "");
+    setIsEditing(false);
+  }, [chapter]);
+
+  if (!isOpen || !chapter) return null;
 
   const wordCount = editedContent
     ? editedContent.trim().split(/\s+/).filter(Boolean).length
