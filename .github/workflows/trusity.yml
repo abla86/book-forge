@@ -17,11 +17,11 @@ jobs:
       run:
         working-directory: apps/trusity
     steps:
-      - uses: actions/checkout@9c091bb1e1b3e0e4b5f0e0d6d2b4b7c1b0f7e5c4 # v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@8207627f6f6f6e5b5a1b2f3c4d5e6f7a8b9c0d1e # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           package-manager-cache: false
