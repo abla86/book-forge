@@ -570,6 +570,10 @@ app.get("/api/book/versions/:projectId/diff", (req, res) => {
 });
 
 async function startServer(): Promise<void> {
+  if (isProduction) {
+    await db.assertProductionDatabaseReady();
+  }
+
   if (!isProduction) {
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
