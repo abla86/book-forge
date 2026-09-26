@@ -37,16 +37,6 @@ function isValidSessionId(value: unknown): value is string {
 }
 
 function isValidUser(value: unknown): value is { id: string; name: string; color: string; avatar: string } {
-  if (!value || typeof value !== 'object') return false;
-  const user = value as Record<string, unknown>;
-  return typeof user.id === 'string' && user.id.length >= 3 && user.id.length <= 128
-    && typeof user.name === 'string' && user.name.length >= 1 && user.name.length <= 80
-    && typeof user.color === 'string' && /^#[0-9A-Fa-f]{6}$/.test(user.color)
-    && typeof user.avatar === 'string' && user.avatar.length <= 8;
-  return typeof value === "string" && value.length >= 6 && value.length <= MAX_SESSION_ID_LENGTH && /^[A-Za-z0-9_-]+$/.test(value);
-}
-
-function isValidUser(value: unknown): value is { id: string; name: string; color: string; avatar: string } {
   if (!value || typeof value !== "object") return false;
   const user = value as Record<string, unknown>;
   return typeof user.id === "string" && user.id.length >= 3 && user.id.length <= 128
@@ -162,11 +152,6 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
               }
             }
 
-            // Host authority is server-owned. Never trust a client-supplied isHost flag.
-            if (isHost && !session.hostId) {
-              session.hostId = user.id;
-            }
-
             const participant: Participant = {
               id: user.id,
               name: user.name || 'Anonymous Guest',
@@ -235,7 +220,8 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
             if (!client) return;
             client.participant.activeSlideIndex = payload.slideIndex;
             client.participant.lastActive = Date.now();
-            const isBroadcast = Boolean(payload.isBroadcast) || client.participant.isHost;
+            // Only the server-designated host may broadcast the authoritative slide.
+            const isBroadcast = client.participant.isHost;
             if (isBroadcast) session.currentSlideIndex = payload.slideIndex;
             broadcastToSession(currentSessionId, {
               type: 'slide_changed', activeSlideIndex: payload.slideIndex, senderId: currentUserId,
@@ -257,6 +243,10 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
 
             if (Buffer.byteLength(JSON.stringify(payload.plan), 'utf8') > MAX_PLAN_BYTES) {
               send({ type: 'error', message: 'Presentation payload is too large.' });
+              return;
+            }
+            if (!client.participant.isHost) {
+              send({ type: 'error', message: 'Only the session host may update the deck.' });
               return;
             }
             session.plan = payload.plan;
