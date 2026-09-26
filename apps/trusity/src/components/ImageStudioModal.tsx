@@ -25,6 +25,7 @@ import {
   VisualContextAnalysis,
   VisualPlacement,
   ThemeConfig,
+  ThemeName,
 } from '../types';
 import { THEMES } from '../data/themes';
 import {
@@ -37,7 +38,7 @@ interface ImageStudioModalProps {
   isOpen: boolean;
   onClose: () => void;
   slide: Slide;
-  themeName: string;
+  themeName: ThemeName;
   presentationTitle?: string;
   onApplyVisual: (asset: SlideVisualAsset | null, applyToAllSlides?: boolean) => void;
 }
