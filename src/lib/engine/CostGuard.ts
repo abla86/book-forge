@@ -2,6 +2,7 @@
 // BookForge AI - CostGuard (AI Token Accounting & Financial Defense)
 // =====================================================================
 
+import crypto from "crypto";
 import { AuthUser } from "../security";
 
 export interface CostRecord {
@@ -82,7 +83,7 @@ class CostGuardService {
   }): CostRecord {
     const costUsd = this.calculateCost(params.inputTokens, params.outputTokens);
     const record: CostRecord = {
-      id: `cost-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: `cost-${Date.now()}-${crypto.randomBytes(8).toString("hex")}`,
       timestamp: new Date().toISOString(),
       userId: params.userId,
       projectId: params.projectId,
