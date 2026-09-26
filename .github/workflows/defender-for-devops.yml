@@ -28,20 +28,22 @@ on:
 
 jobs:
   MSDO:
-    # currently only windows latest is supported
-    runs-on: windows-latest
+    runs-on: windows-2025
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-dotnet@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
-        dotnet-version: |
-          5.0.x
-          6.0.x
+        persist-credentials: false
+    - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with:
+        dotnet-version: 8.0.x
     - name: Run Microsoft Security DevOps
       uses: microsoft/security-devops-action@v1.6.0
       id: msdo
     - name: Upload results to Security tab
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
       with:
         sarif_file: ${{ steps.msdo.outputs.sarifFile }}
