@@ -122,7 +122,6 @@ async function startServer() {
     res.json({
       status: 'ok',
       service: 'Trusity AI Presentation Generator',
-      geminiConfigured: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY'),
       collaborationWebSocketReady: true,
       time: new Date().toISOString(),
     });
@@ -167,7 +166,7 @@ async function startServer() {
     } catch (error: any) {
       console.error('Error generating presentation:', error);
       res.status(500).json({
-        error: error?.message || 'Failed to generate presentation plan.',
+        error: 'Failed to generate presentation plan.'
       });
     }
   });
@@ -187,7 +186,7 @@ async function startServer() {
     } catch (error: any) {
       console.error('Error regenerating slide:', error);
       res.status(500).json({
-        error: error?.message || 'Failed to regenerate slide.',
+        error: 'Failed to regenerate slide.'
       });
     }
   });
@@ -212,7 +211,7 @@ async function startServer() {
     } catch (error: any) {
       console.error('Error polishing presentation deck:', error);
       res.status(500).json({
-        error: error?.message || 'Failed to polish presentation deck.',
+        error: 'Failed to polish presentation deck.'
       });
     }
   });
@@ -264,7 +263,7 @@ async function startServer() {
     } catch (error: any) {
       console.error('Error analyzing visual context:', error);
       res.status(500).json({
-        error: error?.message || 'Failed to analyze slide visual context.',
+        error: 'Failed to analyze slide visual context.'
       });
     }
   });
@@ -318,7 +317,7 @@ async function startServer() {
     } catch (error: any) {
       console.error('Error generating procedural visual:', error);
       res.status(500).json({
-        error: error?.message || 'Failed to generate visual.',
+        error: 'Failed to generate visual.'
       });
     }
   });
