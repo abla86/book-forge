@@ -5,6 +5,7 @@
 // (with Continuation Loop) -> Continuity Audit -> Verification -> Export
 // =====================================================================
 
+import crypto from "crypto";
 import { GoogleGenAI } from "@google/genai";
 import {
   BookProject,
@@ -139,7 +140,7 @@ export class FullBookEngineService {
 
     CostGuard.checkBudget(user, projectId);
 
-    const jobId = `job-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const jobId = `job-${Date.now()}-${crypto.randomBytes(8).toString("hex")}`;
 
     const slotAcquired = RateLimiter.acquireJobSlot(user, jobId, "full_book_generation");
     if (!slotAcquired.success) {
