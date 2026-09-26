@@ -1,5 +1,6 @@
 import express from 'express';
 import http from 'http';
+import crypto from 'crypto';
 import path from 'path';
 import { WebSocketServer } from 'ws';
 import { createServer as createViteServer } from 'vite';
@@ -34,24 +35,39 @@ async function startServer() {
   const AI_RATE_WINDOW_MS = 60 * 60 * 1000;
   const MAX_TEXT_INPUT = 10_000;
   const MAX_PLAN_BYTES = 1_500_000;
+  const MAX_COLLAB_REQUESTS_PER_MINUTE = 30;
+  const collaborationBuckets = new Map<string, { windowStart: number; count: number }>();
 
   function clientIp(req: express.Request): string {
     return req.ip || req.socket.remoteAddress || "unknown";
   }
 
-  function aiAbuseGuard(req: express.Request, res: express.Response, next: express.NextFunction) {
+  function rateLimitByIp(
+    buckets: Map<string, { windowStart: number; count: number }>,
+    limit: number,
+    windowMs: number,
+    req: express.Request,
+    res: express.Response,
+  ): boolean {
     const key = clientIp(req);
     const now = Date.now();
-    const bucket = requestBuckets.get(key);
-    if (!bucket || now - bucket.windowStart >= AI_RATE_WINDOW_MS) {
-      requestBuckets.set(key, { windowStart: now, count: 1 });
-      return next();
-    }
-    if (bucket.count >= AI_RATE_LIMIT) {
-      res.setHeader("Retry-After", String(Math.ceil((AI_RATE_WINDOW_MS - (now - bucket.windowStart)) / 1000)));
-      return res.status(429).json({ error: "Rate limit exceeded. Please try again later." });
+    const bucket = buckets.get(key);
+    if (!bucket || now - bucket.windowStart >= windowMs) {
+      buckets.set(key, { windowStart: now, count: 1 });
+      return false;
     }
     bucket.count += 1;
+    if (bucket.count > limit) {
+      res.setHeader("Retry-After", String(Math.ceil((windowMs - (now - bucket.windowStart)) / 1000)));
+      return true;
+    }
+    return false;
+  }
+
+  function aiAbuseGuard(req: express.Request, res: express.Response, next: express.NextFunction) {
+    if (rateLimitByIp(requestBuckets, AI_RATE_LIMIT, AI_RATE_WINDOW_MS, req, res)) {
+      return res.status(429).json({ error: "Rate limit exceeded. Please try again later." });
+    }
     return next();
   }
 
@@ -75,7 +91,19 @@ async function startServer() {
 
   httpServer.on('upgrade', (request, socket, head) => {
     try {
-      const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
+      const host = request.headers.host;
+      const origin = request.headers.origin;
+      if (!host || (origin && origin !== `http://${host}` && origin !== `https://${host}`)) {
+        socket.write('HTTP/1.1 403 Forbidden\\r\\nConnection: close\\r\\n\\r\\n');
+        socket.destroy();
+        return;
+      }
+      if (process.env.NODE_ENV === 'production' && !origin) {
+        socket.write('HTTP/1.1 403 Forbidden\\r\\nConnection: close\\r\\n\\r\\n');
+        socket.destroy();
+        return;
+      }
+      const url = new URL(request.url || '', `http://${host}`);
       if (url.pathname === '/ws' || url.pathname === '/ws/collaboration') {
         wss.handleUpgrade(request, socket, head, (ws) => {
           wss.emit('connection', ws, request);
@@ -94,7 +122,6 @@ async function startServer() {
     res.json({
       status: 'ok',
       service: 'Trusity AI Presentation Generator',
-      geminiConfigured: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY'),
       collaborationWebSocketReady: true,
       time: new Date().toISOString(),
     });
@@ -139,7 +166,7 @@ async function startServer() {
     } catch (error: any) {
       console.error('Error generating presentation:', error);
       res.status(500).json({
-        error: error?.message || 'Failed to generate presentation plan.',
+        error: 'Failed to generate presentation plan.'
       });
     }
   });
@@ -159,7 +186,7 @@ async function startServer() {
     } catch (error: any) {
       console.error('Error regenerating slide:', error);
       res.status(500).json({
-        error: error?.message || 'Failed to regenerate slide.',
+        error: 'Failed to regenerate slide.'
       });
     }
   });
@@ -184,7 +211,7 @@ async function startServer() {
     } catch (error: any) {
       console.error('Error polishing presentation deck:', error);
       res.status(500).json({
-        error: error?.message || 'Failed to polish presentation deck.',
+        error: 'Failed to polish presentation deck.'
       });
     }
   });
@@ -192,6 +219,8 @@ async function startServer() {
   // API Route: Get collaboration session data
   app.get('/api/collaboration/session/:sessionId', (req, res) => {
     try {
+      if (rateLimitByIp(collaborationBuckets, MAX_COLLAB_REQUESTS_PER_MINUTE, 60_000, req, res)) return res.status(429).json({ error: 'Too many collaboration requests.' });
+      if (!/^[A-Za-z0-9_-]{6,64}$/.test(req.params.sessionId)) return res.status(400).json({ error: 'Invalid session id.' });
       const { sessionId } = req.params;
       const session = getSessionData(sessionId);
       if (!session) {
@@ -207,8 +236,12 @@ async function startServer() {
   // API Route: Create or update collaboration session
   app.post('/api/collaboration/session/create', (req, res) => {
     try {
+      if (rateLimitByIp(collaborationBuckets, MAX_COLLAB_REQUESTS_PER_MINUTE, 60_000, req, res)) return res.status(429).json({ error: 'Too many collaboration requests.' });
       const { sessionId, plan, hostName } = req.body;
-      const targetId = sessionId || `pitch-${Math.random().toString(36).substring(2, 8)}`;
+      if (sessionId !== undefined && (typeof sessionId !== 'string' || !/^[A-Za-z0-9_-]{6,64}$/.test(sessionId))) return res.status(400).json({ error: 'Invalid session id.' });
+      if (plan !== undefined && Buffer.byteLength(JSON.stringify(plan), 'utf8') > MAX_PLAN_BYTES) return res.status(413).json({ error: 'Presentation payload is too large.' });
+      if (hostName !== undefined && (typeof hostName !== 'string' || hostName.length > 80)) return res.status(400).json({ error: 'Invalid host name.' });
+      const targetId = sessionId || `pitch-${crypto.randomBytes(16).toString('hex')}`;
       const session = createOrUpdateSession(targetId, plan, hostName);
       res.json(session);
     } catch (err: any) {
@@ -230,7 +263,7 @@ async function startServer() {
     } catch (error: any) {
       console.error('Error analyzing visual context:', error);
       res.status(500).json({
-        error: error?.message || 'Failed to analyze slide visual context.',
+        error: 'Failed to analyze slide visual context.'
       });
     }
   });
@@ -284,7 +317,7 @@ async function startServer() {
     } catch (error: any) {
       console.error('Error generating procedural visual:', error);
       res.status(500).json({
-        error: error?.message || 'Failed to generate visual.',
+        error: 'Failed to generate visual.'
       });
     }
   });
