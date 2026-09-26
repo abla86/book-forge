@@ -3,6 +3,7 @@
 // Provides high-fidelity Cover Art, Illustrations, and Visual Bible Assets
 // =====================================================================
 
+import crypto from "crypto";
 import { GoogleGenAI } from "@google/genai";
 import { CreativeAsset, BookProject, VisualBible, BookSpecification } from "../../types";
 import { db } from "../db";
@@ -153,7 +154,7 @@ export class AssetEngine {
     user: AuthUser
   ): Promise<CreativeAsset> {
     const { prompt, negativePrompt } = this.buildPrompt(project, request);
-    const assetId = `asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const assetId = `asset_${Date.now()}_${crypto.randomBytes(8).toString("hex")}`;
 
     let generatedImageUrl: string | undefined = undefined;
 
