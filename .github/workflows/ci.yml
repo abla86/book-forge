@@ -15,11 +15,11 @@ jobs:
     timeout-minutes: 20
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@9c091bb1e1b3e0e4b5f0e0d6d2b4b7c1b0f7e5c4 # v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
-      - uses: oven-sh/setup-bun@735343b4f6580b8a4f3f0e6f7a0d7a2e5f7f6d4a # v2.0.2
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
         with:
           bun-version: latest
 
