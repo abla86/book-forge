@@ -109,10 +109,7 @@ export class DatabaseAdapter {
           })
           .catch((err) => {
             this.isConnectedToPostgres = false;
-            if (process.env.NODE_ENV === "production") {
-              throw new Error(`PostgreSQL-tilkobling feilet i production: ${err.message}`);
-            }
-            console.warn("[BookForge DB] PostgreSQL connection error in development:", err.message);
+            console.warn("[BookForge DB] PostgreSQL connection error:", err.message);
           });
       } catch (poolErr) {
         console.warn("[BookForge DB] Failed to construct PostgreSQL Pool:", poolErr);
@@ -212,6 +209,20 @@ export class DatabaseAdapter {
       fs.writeFileSync(this.dbFilePath, JSON.stringify(this.state, null, 2), "utf8");
     } catch (err) {
       console.error("[BookForge DB] Failed to save state to disk:", err);
+    }
+  }
+
+  public async assertProductionDatabaseReady(): Promise<void> {
+    if (process.env.NODE_ENV !== "production") return;
+    if (!this.pgPool || !process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL er påkrevd i production.");
+    }
+    try {
+      await this.pgPool.query("SELECT 1");
+      this.isConnectedToPostgres = true;
+    } catch (error) {
+      this.isConnectedToPostgres = false;
+      throw new Error("PostgreSQL-tilkobling feilet i production.");
     }
   }
 
