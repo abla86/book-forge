@@ -342,7 +342,7 @@ export const AnnotationCanvasLayer: React.FC<AnnotationCanvasLayerProps> = ({
 
       isDrawingRef.current = true;
       const newStroke: DrawingStroke = {
-        id: `stroke_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        id: `stroke_${crypto.randomUUID()}`,
         points: [coords],
         color: penColor,
         width: activeTool === 'highlighter' ? strokeWidth * 2.8 : strokeWidth,
