@@ -54,6 +54,8 @@ export function ChapterReaderModal({
 
   if (!isOpen || !chapter) return null;
 
+  const currentChapter = chapter;
+
   const wordCount = editedContent
     ? editedContent.trim().split(/\s+/).filter(Boolean).length
     : 0;
@@ -65,21 +67,21 @@ export function ChapterReaderModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          chapterNumber: chapter.number,
-          chapterTitle: chapter.title,
-          chapterSummary: chapter.summary,
+          chapterNumber: currentChapter.number,
+          chapterTitle: currentChapter.title,
+          chapterSummary: currentChapter.summary,
           bookTitle,
           genre,
           tone,
-          characters: chapter.povCharacter,
-          previousSummary: `Kapittel ${chapter.number}: ${chapter.title}`,
+          characters: currentChapter.povCharacter,
+          previousSummary: `Kapittel ${currentChapter.number}: ${currentChapter.title}`,
         }),
       });
       const data = await res.json();
       if (data.content) {
         setEditedContent(data.content);
         const count = data.content.trim().split(/\s+/).filter(Boolean).length;
-        onSaveContent(chapter.id, data.content, count);
+        onSaveContent(currentChapter.id, data.content, count);
       }
     } catch (err) {
       console.error("Failed to generate chapter text:", err);
@@ -89,7 +91,7 @@ export function ChapterReaderModal({
   }
 
   function handleSave() {
-    onSaveContent(chapter.id, editedContent, wordCount);
+    onSaveContent(currentChapter.id, editedContent, wordCount);
     setIsEditing(false);
   }
 
@@ -112,31 +114,31 @@ export function ChapterReaderModal({
         <div className="flex items-center justify-between border-b border-slate-200/80 bg-white px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-indigo-50 text-indigo-700 font-black">
-              {chapter.number}
+              {currentChapter.number}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">
-                  Akt {chapter.act} • Kapittel {chapter.number}
+                  Akt {currentChapter.act} • Kapittel {currentChapter.number}
                 </span>
                 <Badge
                   variant={
-                    chapter.status === "completed"
+                    currentChapter.status === "completed"
                       ? "success"
-                      : chapter.status === "verified"
+                      : currentChapter.status === "verified"
                       ? "default"
                       : "secondary"
                   }
                 >
-                  {chapter.status === "completed"
+                  {currentChapter.status === "completed"
                     ? "Ferdigskrevet"
-                    : chapter.status === "verified"
+                    : currentChapter.status === "verified"
                     ? "Kvalitetssikret"
                     : "Planlagt"}
                 </Badge>
               </div>
               <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                {chapter.title}
+                {currentChapter.title}
               </h2>
             </div>
           </div>
@@ -192,12 +194,12 @@ export function ChapterReaderModal({
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-amber-700 shrink-0" />
             <span>
-              <strong>Kontinuitetskrav:</strong> {chapter.continuityNotes}
+              <strong>Kontinuitetskrav:</strong> {currentChapter.continuityNotes}
             </span>
           </div>
           <div className="flex items-center gap-4 text-slate-600 font-medium">
-            <span>POV: <strong className="text-slate-900">{chapter.povCharacter}</strong></span>
-            <span>Ord: <strong className="text-slate-900">{wordCount.toLocaleString("nb-NO")}</strong> / {chapter.wordTarget.toLocaleString("nb-NO")}</span>
+            <span>POV: <strong className="text-slate-900">{currentChapter.povCharacter}</strong></span>
+            <span>Ord: <strong className="text-slate-900">{wordCount.toLocaleString("nb-NO")}</strong> / {currentChapter.wordTarget.toLocaleString("nb-NO")}</span>
           </div>
         </div>
 
@@ -219,10 +221,10 @@ export function ChapterReaderModal({
             <div className="mx-auto max-w-2xl font-serif text-slate-800">
               <div className="mb-8 text-center">
                 <div className="text-xs uppercase tracking-[0.25em] text-slate-400 font-sans">
-                  Kapittel {chapter.number}
+                  Kapittel {currentChapter.number}
                 </div>
                 <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 font-serif">
-                  {chapter.title}
+                  {currentChapter.title}
                 </h1>
                 <div className="mx-auto mt-4 h-px w-12 bg-indigo-300" />
               </div>
@@ -240,7 +242,7 @@ export function ChapterReaderModal({
                 Dette kapittelet er ennå ikke skrevet
               </h3>
               <p className="mt-2 max-w-md text-sm text-slate-600 leading-relaxed">
-                <strong>Handling:</strong> {chapter.summary}
+                <strong>Handling:</strong> {currentChapter.summary}
               </p>
               <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                 <Button

@@ -11,24 +11,36 @@ permissions:
 
 jobs:
   trusity:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:
         working-directory: apps/trusity
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          package-manager-cache: false
+
       - name: Install
         run: npm install --no-audit --no-fund
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high --omit=dev
+
       - name: Typecheck
         run: npm run lint
+
       - name: Build
         run: npm run build
+
       - name: Server smoke test
         run: |
           NODE_ENV=production PORT=3057 node dist/server.cjs &
           for i in $(seq 1 30); do curl -fs http://127.0.0.1:3057/api/health && exit 0; sleep 1; done
-          echo "Trusity server did not become healthy"; exit 1
+          echo "Trusity server did not become healthy"
+          exit 1
