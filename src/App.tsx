@@ -1532,7 +1532,7 @@ export default function BookForgeAI() {
         }}
         onNewProject={async (newTitle, newGenre, newIdea, newTone = "Filmisk") => {
           const newBook: BookProject = {
-            id: `book-${crypto.randomUUID()}`
+            id: `book-${crypto.randomUUID()}`,
             title: newTitle,
             idea: newIdea,
             genre: newGenre,
