@@ -15,16 +15,19 @@ jobs:
     timeout-minutes: 20
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb1e1b3e0e4b5f0e0d6d2b4b7c1b0f7e5c4 # v7.0.0
         with:
           persist-credentials: false
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@735343b4f6580b8a4f3f0e6f7a0d7a2e5f7f6d4a # v2.0.2
         with:
           bun-version: latest
 
       - name: Install dependencies
         run: bun install --no-save
+
+      - name: Dependency security audit
+        run: bun audit --audit-level=high
 
       - name: Type check
         run: bun run lint
