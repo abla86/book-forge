@@ -27,7 +27,7 @@ function getRandomColor(): string {
 }
 
 function getStoredUser() {
-  const storedId = localStorage.getItem('trusity_user_id') || `user-${Math.random().toString(36).substring(2, 9)}`;
+  const storedId = localStorage.getItem('trusity_user_id') || `user-${crypto.randomUUID()}`;
   localStorage.setItem('trusity_user_id', storedId);
 
   const storedName = localStorage.getItem('trusity_user_name') || `User ${storedId.substring(5, 9)}`;
