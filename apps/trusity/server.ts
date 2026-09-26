@@ -26,6 +26,49 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
   const httpServer = http.createServer(app);
 
+  // Lightweight abuse protection for the independently deployable Trusity service.
+  // This is intentionally in-memory: deployment-specific distributed rate limiting
+  // should be provided by the hosting platform when multiple replicas are used.
+  const requestBuckets = new Map<string, { windowStart: number; count: number }>();
+  const AI_RATE_LIMIT = 20;
+  const AI_RATE_WINDOW_MS = 60 * 60 * 1000;
+  const MAX_TEXT_INPUT = 10_000;
+  const MAX_PLAN_BYTES = 1_500_000;
+
+  function clientIp(req: express.Request): string {
+    return req.ip || req.socket.remoteAddress || "unknown";
+  }
+
+  function aiAbuseGuard(req: express.Request, res: express.Response, next: express.NextFunction) {
+    const key = clientIp(req);
+    const now = Date.now();
+    const bucket = requestBuckets.get(key);
+    if (!bucket || now - bucket.windowStart >= AI_RATE_WINDOW_MS) {
+      requestBuckets.set(key, { windowStart: now, count: 1 });
+      return next();
+    }
+    if (bucket.count >= AI_RATE_LIMIT) {
+      res.setHeader("Retry-After", String(Math.ceil((AI_RATE_WINDOW_MS - (now - bucket.windowStart)) / 1000)));
+      return res.status(429).json({ error: "Rate limit exceeded. Please try again later." });
+    }
+    bucket.count += 1;
+    return next();
+  }
+
+  function validateText(value: unknown, field: string): string | undefined {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== "string") throw new Error(`${field} must be a string.`);
+    if (value.length > MAX_TEXT_INPUT) throw new Error(`${field} is too long.`);
+    return value;
+  }
+
+  setInterval(() => {
+    const cutoff = Date.now() - AI_RATE_WINDOW_MS;
+    for (const [key, bucket] of requestBuckets) {
+      if (bucket.windowStart < cutoff) requestBuckets.delete(key);
+    }
+  }, AI_RATE_WINDOW_MS).unref();
+
   // Initialize WebSocket server for Real-Time Collaboration
   const wss = new WebSocketServer({ noServer: true });
   setupCollaborationWebSocket(wss);
@@ -44,7 +87,7 @@ async function startServer() {
   });
 
   // JSON body parser with generous limit for presentation plans
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '2mb', strict: true }));
 
   // API Route: Health check
   app.get('/api/health', (req, res) => {
@@ -65,7 +108,7 @@ async function startServer() {
   });
 
   // API Route: Generate presentation plan
-  app.post('/api/generate', async (req, res) => {
+  app.post('/api/generate', aiAbuseGuard, async (req, res) => {
     try {
       const {
         idea,
@@ -77,7 +120,7 @@ async function startServer() {
         slideCount = 8,
       } = req.body;
 
-      if (!idea || typeof idea !== 'string' || idea.trim().length === 0) {
+      if (!idea || typeof idea !== 'string' || idea.trim().length === 0 || idea.length > MAX_TEXT_INPUT) {
         res.status(400).json({ error: 'Please provide a business idea to generate slides.' });
         return;
       }
@@ -102,9 +145,10 @@ async function startServer() {
   });
 
   // API Route: Refine / Regenerate a single slide
-  app.post('/api/regenerate-slide', async (req, res) => {
+  app.post('/api/regenerate-slide', aiAbuseGuard, async (req, res) => {
     try {
       const { slide, instruction, analysis } = req.body;
+      if (Buffer.byteLength(JSON.stringify(slide || {}), 'utf8') > MAX_PLAN_BYTES) return res.status(413).json({ error: 'Slide payload is too large.' });
       if (!slide || !instruction) {
         res.status(400).json({ error: 'slide and instruction are required.' });
         return;
@@ -121,9 +165,10 @@ async function startServer() {
   });
 
   // API Route: Professional Polish across all slides in presentation
-  app.post('/api/polish-deck', async (req, res) => {
+  app.post('/api/polish-deck', aiAbuseGuard, async (req, res) => {
     try {
       const { plan, targetTone, focusAreas, customInstruction } = req.body;
+      if (Buffer.byteLength(JSON.stringify(plan || {}), 'utf8') > MAX_PLAN_BYTES) return res.status(413).json({ error: 'Presentation payload is too large.' });
       if (!plan || !plan.slides || !Array.isArray(plan.slides)) {
         res.status(400).json({ error: 'A valid presentation plan with slides is required.' });
         return;
@@ -172,7 +217,7 @@ async function startServer() {
   });
 
   // API Route: Analyze slide context for visual recommendations & AI prompt
-  app.post('/api/images/analyze', async (req, res) => {
+  app.post('/api/images/analyze', aiAbuseGuard, async (req, res) => {
     try {
       const { slide, themeName, fullPlanTitle } = req.body;
       if (!slide) {
@@ -223,9 +268,10 @@ async function startServer() {
   });
 
   // API Route: Generate bespoke procedural vector / SVG visual
-  app.post('/api/images/generate', (req, res) => {
+  app.post('/api/images/generate', aiAbuseGuard, (req, res) => {
     try {
       const { prompt, stylePreset, aspectRatio, themePrimary, themeSecondary, headline } = req.body;
+      if (Buffer.byteLength(JSON.stringify(req.body), 'utf8') > MAX_PLAN_BYTES) return res.status(413).json({ error: 'Request payload is too large.' });
       const visualAsset = generateProceduralVisual({
         prompt: prompt || 'Strategic technology diagram',
         stylePreset: stylePreset || 'isometric_pipeline',
