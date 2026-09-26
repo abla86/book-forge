@@ -304,7 +304,7 @@ app.post("/api/book/generate-full-book", async (req, res) => {
   try {
     const job = await FullBookEngine.startGeneration({ projectId: project.id, idea: idea || project.idea || project.title, title: title || project.title, author: typeof body.author === "string" ? body.author.slice(0, 200) : project.author || user.name, genre: typeof body.genre === "string" ? body.genre.slice(0, 100) : project.genre, subgenre: typeof body.subgenre === "string" ? body.subgenre.slice(0, 100) : undefined, tone: typeof body.tone === "string" ? body.tone.slice(0, 100) : project.tone, audience: typeof body.audience === "string" ? body.audience.slice(0, 200) : undefined, language: typeof body.language === "string" ? body.language.slice(0, 100) : "Norsk (Bokmål)", pov: typeof body.pov === "string" ? body.pov.slice(0, 100) : project.pov, targetWords: Number(body.targetWords) || project.targetWords || 80000, targetChapters: Number(body.targetChapters) || project.targetChapters || 32, acts: Number(body.acts) || project.acts || 4, user }, ai);
     return res.json({ jobId: job.id, projectId: job.projectId, status: job.status, phase: job.phase, totalChapters: job.totalChapters, targetWords: job.totalWords });
-  } catch (error: unknown) { return res.status(500).json({ error: error instanceof Error ? error.message : "Kunne ikke starte bokgenerering." }); }
+  } catch (error: unknown) { console.error("[BookForge] Failed to start generation:", error); return res.status(500).json({ error: "Kunne ikke starte bokgenerering." }); }
 });
 
 app.get("/api/book/generation/:jobId", (req, res) => {
@@ -340,7 +340,7 @@ app.post("/api/book/generation/:jobId/resume", async (req, res) => {
   const ai = getGeminiClient();
   if (!ai) return res.status(503).json({ error: "AI-tjenesten krever konfigurert GEMINI_API_KEY for å gjenoppta genereringsjobben." });
   try { return res.json(await FullBookEngine.resumeJob(req.params.jobId, ai, user)); }
-  catch (error: unknown) { return res.status(500).json({ error: error instanceof Error ? error.message : "Kunne ikke gjenoppta genereringsjobb." }); }
+  catch (error: unknown) { console.error("[BookForge] Failed to resume generation:", error); return res.status(500).json({ error: "Kunne ikke gjenoppta genereringsjobb." }); }
 });
 
 app.get("/api/book/generation/project/:projectId", (req, res) => {
