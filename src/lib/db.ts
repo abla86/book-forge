@@ -135,11 +135,11 @@ export class DatabaseAdapter {
 
   private loadFromDisk(): PersistenceState {
     const defaultState: PersistenceState = {
-      users: [
+      users: process.env.NODE_ENV === "production" ? [] : [
         {
-          id: "user-anne-beth-1",
-          name: "Anne Beth Andersen",
-          email: "anne.beth@bookforge.ai",
+          id: "user-local-founder",
+          name: "Local Founder",
+          email: "founder@localhost.invalid",
           role: "FOUNDER",
           subscriptionPlan: "STUDIO",
         },
