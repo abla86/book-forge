@@ -26,7 +26,6 @@ interface ServerSession {
   clients: Map<string, ClientEntry>;
 }
 
-// Global active sessions map
 const sessions = new Map<string, ServerSession>();
 const MAX_WS_MESSAGE_BYTES = 256 * 1024;
 const MAX_PLAN_BYTES = 1_000_000;
@@ -34,16 +33,16 @@ const MAX_CHAT_LENGTH = 2_000;
 const MAX_SESSION_ID_LENGTH = 64;
 
 function isValidSessionId(value: unknown): value is string {
-  return typeof value === "string" && value.length >= 6 && value.length <= MAX_SESSION_ID_LENGTH && /^[A-Za-z0-9_-]+$/.test(value);
+  return typeof value === 'string' && value.length >= 6 && value.length <= MAX_SESSION_ID_LENGTH && /^[A-Za-z0-9_-]+$/.test(value);
 }
 
 function isValidUser(value: unknown): value is { id: string; name: string; color: string; avatar: string } {
-  if (!value || typeof value !== "object") return false;
+  if (!value || typeof value !== 'object') return false;
   const user = value as Record<string, unknown>;
-  return typeof user.id === "string" && user.id.length >= 3 && user.id.length <= 128
-    && typeof user.name === "string" && user.name.length >= 1 && user.name.length <= 80
-    && typeof user.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(user.color)
-    && typeof user.avatar === "string" && user.avatar.length <= 8;
+  return typeof user.id === 'string' && user.id.length >= 3 && user.id.length <= 128
+    && typeof user.name === 'string' && user.name.length >= 1 && user.name.length <= 80
+    && typeof user.color === 'string' && /^#[0-9A-Fa-f]{6}$/.test(user.color)
+    && typeof user.avatar === 'string' && user.avatar.length <= 8;
 }
 
 export function getSessionData(sessionId: string): CollaborationSessionState | null {
@@ -61,11 +60,7 @@ export function getSessionData(sessionId: string): CollaborationSessionState | n
   };
 }
 
-export function createOrUpdateSession(
-  sessionId: string,
-  plan?: PresentationPlan,
-  hostName?: string
-): CollaborationSessionState {
+export function createOrUpdateSession(sessionId: string, plan?: PresentationPlan, hostName?: string): CollaborationSessionState {
   let session = sessions.get(sessionId);
   if (!session) {
     session = {
@@ -93,31 +88,20 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
 
     const send = (msg: CollaborationWsServerMessage) => {
       if (ws.readyState === WebSocket.OPEN) {
-        try {
-          ws.send(JSON.stringify(msg));
-        } catch (err) {
-          console.error('[CollaborationWS] Error sending message:', err);
-        }
+        try { ws.send(JSON.stringify(msg)); }
+        catch (err) { console.error('[CollaborationWS] Error sending message:', err); }
       }
     };
 
-    const broadcastToSession = (
-      sessionId: string,
-      msg: CollaborationWsServerMessage,
-      excludeUserId?: string
-    ) => {
+    const broadcastToSession = (sessionId: string, msg: CollaborationWsServerMessage, excludeUserId?: string) => {
       const session = sessions.get(sessionId);
       if (!session) return;
       const dataStr = JSON.stringify(msg);
-
       for (const [userId, client] of session.clients.entries()) {
         if (excludeUserId && userId === excludeUserId) continue;
         if (client.ws.readyState === WebSocket.OPEN) {
-          try {
-            client.ws.send(dataStr);
-          } catch (err) {
-            console.error(`[CollaborationWS] Broadcast error to ${userId}:`, err);
-          }
+          try { client.ws.send(dataStr); }
+          catch (err) { console.error(`[CollaborationWS] Broadcast error to ${userId}:`, err); }
         }
       }
     };
@@ -142,8 +126,8 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
 
             currentSessionId = sessionId;
             currentUserId = user.id;
-
             let session = sessions.get(sessionId);
+
             if (!session) {
               session = {
                 sessionId,
@@ -157,20 +141,11 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
               };
               sessions.set(sessionId, session);
             } else {
-              // If session doesn't have a plan yet but joiner has one, adopt it
               if (!session.plan && initialPlan) {
                 session.plan = initialPlan;
                 session.title = initialPlan.title;
               }
-              // If no host exists yet, designate this user as host
-              if (!session.hostId) {
-                session.hostId = user.id;
-              }
-            }
-
-            // Host authority is server-owned. Never trust a client-supplied isHost flag.
-            if (isHost && !session.hostId) {
-              session.hostId = user.id;
+              if (!session.hostId) session.hostId = user.id;
             }
 
             const participant: Participant = {
@@ -197,33 +172,16 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
               participants: Array.from(session.clients.values()).map((c) => c.participant),
             };
 
-            // 1. Send authoritative session state to newly joined client
-            send({
-              type: 'session_state',
-              session: sessionState,
-              yourId: user.id,
+            send({ type: 'session_state', session: sessionState, yourId: user.id });
+            broadcastToSession(sessionId, {
+              type: 'participant_joined',
+              participant,
+              message: `${participant.name} joined the collaboration session.`,
+            }, user.id);
+            broadcastToSession(sessionId, {
+              type: 'participants_updated',
+              participants: sessionState.participants,
             });
-
-            // 2. Broadcast join event to everyone else
-            broadcastToSession(
-              sessionId,
-              {
-                type: 'participant_joined',
-                participant,
-                message: `${participant.name} joined the collaboration session.`,
-              },
-              user.id
-            );
-
-            // 3. Update participant roster
-            broadcastToSession(
-              sessionId,
-              {
-                type: 'participants_updated',
-                participants: sessionState.participants,
-              }
-            );
-
             console.log(`[CollaborationWS] User ${user.name} (${user.id}) joined room ${sessionId}. Total: ${session.clients.size}`);
             break;
           }
@@ -232,10 +190,8 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
             if (!currentSessionId || !currentUserId) return;
             const session = sessions.get(currentSessionId);
             if (!session) return;
-
             const client = session.clients.get(currentUserId);
             if (!client) return;
-
             const now = Date.now();
             client.participant.lastActive = now;
             client.participant.cursor = {
@@ -244,21 +200,11 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
               slideIndex: payload.slideIndex,
               lastActive: now,
             };
-
-            // Broadcast cursor to other participants in this room
-            broadcastToSession(
-              currentSessionId,
-              {
-                type: 'cursor_update',
-                userId: currentUserId,
-                name: client.participant.name,
-                color: client.participant.color,
-                x: client.participant.cursor.x,
-                y: client.participant.cursor.y,
-                slideIndex: payload.slideIndex,
-              },
-              currentUserId
-            );
+            broadcastToSession(currentSessionId, {
+              type: 'cursor_update', userId: currentUserId, name: client.participant.name,
+              color: client.participant.color, x: client.participant.cursor.x, y: client.participant.cursor.y,
+              slideIndex: payload.slideIndex,
+            }, currentUserId);
             break;
           }
 
@@ -266,31 +212,16 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
             if (!currentSessionId || !currentUserId) return;
             const session = sessions.get(currentSessionId);
             if (!session) return;
-
             const client = session.clients.get(currentUserId);
             if (!client) return;
-
             client.participant.activeSlideIndex = payload.slideIndex;
             client.participant.lastActive = Date.now();
-
             const isBroadcast = Boolean(payload.isBroadcast) || client.participant.isHost;
-            if (isBroadcast) {
-              session.currentSlideIndex = payload.slideIndex;
-            }
-
-            broadcastToSession(
-              currentSessionId,
-              {
-                type: 'slide_changed',
-                activeSlideIndex: payload.slideIndex,
-                senderId: currentUserId,
-                senderName: client.participant.name,
-                isBroadcast,
-              },
-              currentUserId
-            );
-
-            // Update participant roster so everyone sees who is on which slide
+            if (isBroadcast) session.currentSlideIndex = payload.slideIndex;
+            broadcastToSession(currentSessionId, {
+              type: 'slide_changed', activeSlideIndex: payload.slideIndex, senderId: currentUserId,
+              senderName: client.participant.name, isBroadcast,
+            }, currentUserId);
             broadcastToSession(currentSessionId, {
               type: 'participants_updated',
               participants: Array.from(session.clients.values()).map((c) => c.participant),
@@ -302,10 +233,8 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
             if (!currentSessionId || !currentUserId) return;
             const session = sessions.get(currentSessionId);
             if (!session) return;
-
             const client = session.clients.get(currentUserId);
             if (!client) return;
-
             if (Buffer.byteLength(JSON.stringify(payload.plan), 'utf8') > MAX_PLAN_BYTES) {
               send({ type: 'error', message: 'Presentation payload is too large.' });
               return;
@@ -313,18 +242,10 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
             session.plan = payload.plan;
             session.currentSlideIndex = payload.activeSlideIndex ?? session.currentSlideIndex;
             session.title = payload.plan.title || session.title;
-
-            broadcastToSession(
-              currentSessionId,
-              {
-                type: 'deck_updated',
-                plan: payload.plan,
-                activeSlideIndex: session.currentSlideIndex,
-                senderId: currentUserId,
-                senderName: client.participant.name,
-              },
-              currentUserId
-            );
+            broadcastToSession(currentSessionId, {
+              type: 'deck_updated', plan: payload.plan, activeSlideIndex: session.currentSlideIndex,
+              senderId: currentUserId, senderName: client.participant.name,
+            }, currentUserId);
             break;
           }
 
@@ -332,11 +253,10 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
             if (!currentSessionId || !currentUserId) return;
             const session = sessions.get(currentSessionId);
             if (!session) return;
-
             const client = session.clients.get(currentUserId);
             if (typeof payload.emoji !== 'string' || payload.emoji.length > 32) return;
             const reaction: LiveReaction = {
-              id: `react-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              id: `react-${Date.now()}-${crypto.randomUUID()}`,
               emoji: payload.emoji,
               x: Math.max(5, Math.min(95, payload.x)),
               y: Math.max(5, Math.min(95, payload.y)),
@@ -344,12 +264,7 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
               color: client?.participant.color || '#EC4899',
               timestamp: Date.now(),
             };
-
-            // Broadcast to ALL users in session (including sender so everyone sees the floating celebration)
-            broadcastToSession(currentSessionId, {
-              type: 'reaction_received',
-              reaction,
-            });
+            broadcastToSession(currentSessionId, { type: 'reaction_received', reaction });
             break;
           }
 
@@ -357,12 +272,10 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
             if (!currentSessionId || !currentUserId) return;
             const session = sessions.get(currentSessionId);
             if (!session) return;
-
             const client = session.clients.get(currentUserId);
             if (!client || typeof payload.text !== 'string' || !payload.text.trim() || payload.text.length > MAX_CHAT_LENGTH) return;
-
             const message: CollaborationMessage = {
-              id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              id: `msg-${Date.now()}-${crypto.randomUUID()}`,
               senderId: currentUserId,
               senderName: client.participant.name,
               senderColor: client.participant.color,
@@ -370,16 +283,9 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               slideIndex: payload.slideIndex,
             };
-
             session.messages.push(message);
-            if (session.messages.length > 50) {
-              session.messages.shift();
-            }
-
-            broadcastToSession(currentSessionId, {
-              type: 'chat_received',
-              message,
-            });
+            if (session.messages.length > 50) session.messages.shift();
+            broadcastToSession(currentSessionId, { type: 'chat_received', message });
             break;
           }
 
@@ -387,17 +293,14 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
             if (currentSessionId && currentUserId) {
               const session = sessions.get(currentSessionId);
               const client = session?.clients.get(currentUserId);
-              if (client) {
-                client.participant.lastActive = Date.now();
-              }
+              if (client) client.participant.lastActive = Date.now();
             }
             break;
           }
 
-          case 'leave': {
+          case 'leave':
             cleanupClient();
             break;
-          }
         }
       } catch (err) {
         console.error('[CollaborationWS] Message parsing error:', err);
@@ -408,32 +311,26 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
       if (!currentSessionId || !currentUserId) return;
       const session = sessions.get(currentSessionId);
       if (!session) return;
-
       const client = session.clients.get(currentUserId);
       const participantName = client?.participant.name || 'A participant';
-
       session.clients.delete(currentUserId);
-
-      // If host left, appoint new host if anyone remains
       if (session.hostId === currentUserId && session.clients.size > 0) {
         const nextHost = Array.from(session.clients.values())[0];
         session.hostId = nextHost.participant.id;
         nextHost.participant.isHost = true;
+        for (const entry of session.clients.values()) {
+          entry.participant.isHost = entry.participant.id === session.hostId;
+        }
       }
-
       broadcastToSession(currentSessionId, {
-        type: 'participant_left',
-        participantId: currentUserId,
+        type: 'participant_left', participantId: currentUserId,
         message: `${participantName} left the session.`,
       });
-
       broadcastToSession(currentSessionId, {
         type: 'participants_updated',
         participants: Array.from(session.clients.values()).map((c) => c.participant),
       });
-
       console.log(`[CollaborationWS] User ${currentUserId} left room ${currentSessionId}. Remaining: ${session.clients.size}`);
-
       currentSessionId = null;
       currentUserId = null;
     };
