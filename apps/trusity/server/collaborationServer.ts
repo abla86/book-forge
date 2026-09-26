@@ -43,6 +43,16 @@ function isValidUser(value: unknown): value is { id: string; name: string; color
     && typeof user.name === 'string' && user.name.length >= 1 && user.name.length <= 80
     && typeof user.color === 'string' && /^#[0-9A-Fa-f]{6}$/.test(user.color)
     && typeof user.avatar === 'string' && user.avatar.length <= 8;
+  return typeof value === "string" && value.length >= 6 && value.length <= MAX_SESSION_ID_LENGTH && /^[A-Za-z0-9_-]+$/.test(value);
+}
+
+function isValidUser(value: unknown): value is { id: string; name: string; color: string; avatar: string } {
+  if (!value || typeof value !== "object") return false;
+  const user = value as Record<string, unknown>;
+  return typeof user.id === "string" && user.id.length >= 3 && user.id.length <= 128
+    && typeof user.name === "string" && user.name.length >= 1 && user.name.length <= 80
+    && typeof user.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(user.color)
+    && typeof user.avatar === "string" && user.avatar.length <= 8;
 }
 
 export function getSessionData(sessionId: string): CollaborationSessionState | null {
@@ -146,6 +156,15 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
                 session.title = initialPlan.title;
               }
               if (!session.hostId) session.hostId = user.id;
+              // If no host exists yet, designate this user as host
+              if (!session.hostId) {
+                session.hostId = user.id;
+              }
+            }
+
+            // Host authority is server-owned. Never trust a client-supplied isHost flag.
+            if (isHost && !session.hostId) {
+              session.hostId = user.id;
             }
 
             const participant: Participant = {
@@ -235,6 +254,7 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
             if (!session) return;
             const client = session.clients.get(currentUserId);
             if (!client) return;
+
             if (Buffer.byteLength(JSON.stringify(payload.plan), 'utf8') > MAX_PLAN_BYTES) {
               send({ type: 'error', message: 'Presentation payload is too large.' });
               return;
@@ -274,6 +294,7 @@ export function setupCollaborationWebSocket(wss: WebSocketServer) {
             if (!session) return;
             const client = session.clients.get(currentUserId);
             if (!client || typeof payload.text !== 'string' || !payload.text.trim() || payload.text.length > MAX_CHAT_LENGTH) return;
+
             const message: CollaborationMessage = {
               id: `msg-${Date.now()}-${crypto.randomUUID()}`,
               senderId: currentUserId,
