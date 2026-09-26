@@ -30,8 +30,7 @@ on:
 
 jobs:
   Fortify-AST-Scan:
-    # Fortify credentials are optional in this repository. Do not turn an unconfigured scanner into a red CI result.
-    if: ${{ secrets.FOD_USER != '' || secrets.FOD_CLIENT_ID != '' || secrets.SSC_TOKEN != '' }}
+    # Credentials are optional. Keep the workflow green when Fortify is not configured.
     # Use the appropriate runner for building your source code. Ensure dev tools required to build your code are present and configured appropriately (MSBuild, Python, etc).
     runs-on: ubuntu-24.04
     permissions:
@@ -39,6 +38,10 @@ jobs:
       contents: read
       security-events: write
       # pull-requests: write     # Required if DO_PR_COMMENT is set to true
+    env:
+      FOD_USER: ${{ secrets.FOD_USER }}
+      FOD_CLIENT_ID: ${{ secrets.FOD_CLIENT_ID }}
+      SSC_TOKEN: ${{ secrets.SSC_TOKEN }}
 
     steps:
       # Check out source code
@@ -56,6 +59,7 @@ jobs:
       # documentation at https://github.com/fortify/github-action#readme for more information on the various
       # configuration options and available sub-actions.
       - name: Run Fortify Scan
+        if: ${{ env.FOD_USER != '' || env.FOD_CLIENT_ID != '' || env.SSC_TOKEN != '' }}
         # Specify Fortify GitHub Action version to run. As per GitHub starter workflow requirements, this example
         # uses the commit id corresponding to version 1.6.2. It is recommended to check whether any later releases
         # are available at https://github.com/fortify/github-action/releases. Depending on the amount of stability
