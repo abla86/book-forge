@@ -108,7 +108,7 @@ export const CollaborationModal: React.FC<CollaborationModalProps> = ({
   };
 
   const handleStartNewSession = () => {
-    const randomId = `pitch-${Math.random().toString(36).substring(2, 8)}`;
+    const randomId = `pitch-${crypto.randomUUID()}`;
     onJoinSession(randomId, currentPlan || undefined, true);
   };
 
