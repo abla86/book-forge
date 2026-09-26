@@ -1,5 +1,6 @@
 import express from 'express';
 import http from 'http';
+import crypto from 'crypto';
 import path from 'path';
 import { WebSocketServer } from 'ws';
 import { createServer as createViteServer } from 'vite';
@@ -241,7 +242,7 @@ async function startServer() {
       if (sessionId !== undefined && (typeof sessionId !== 'string' || !/^[A-Za-z0-9_-]{6,64}$/.test(sessionId))) return res.status(400).json({ error: 'Invalid session id.' });
       if (plan !== undefined && Buffer.byteLength(JSON.stringify(plan), 'utf8') > MAX_PLAN_BYTES) return res.status(413).json({ error: 'Presentation payload is too large.' });
       if (hostName !== undefined && (typeof hostName !== 'string' || hostName.length > 80)) return res.status(400).json({ error: 'Invalid host name.' });
-      const targetId = sessionId || `pitch-${Math.random().toString(36).substring(2, 8)}`;
+      const targetId = sessionId || `pitch-${crypto.randomBytes(16).toString('hex')}`;
       const session = createOrUpdateSession(targetId, plan, hostName);
       res.json(session);
     } catch (err: any) {
