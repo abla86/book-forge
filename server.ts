@@ -367,7 +367,7 @@ app.post("/api/assets/generate", async (req, res) => {
     const asset = await AssetEngine.getInstance().generateAsset(project, { projectId: project.id, type: String(body.type) as NonNullable<BookProject["assets"]>[number]["type"], title: String(body.title).slice(0, 300), customPrompt: typeof body.customPrompt === "string" ? body.customPrompt.slice(0, 5000) : undefined, chapterNumber: Number.isFinite(Number(body.chapterNumber)) ? Number(body.chapterNumber) : undefined, characterName: typeof body.characterName === "string" ? body.characterName.slice(0, 200) : undefined, aspectRatio: typeof body.aspectRatio === "string" ? body.aspectRatio.slice(0, 30) : undefined }, getGeminiClient(), user);
     AuditLogger.log({ actorId: user.id, actorRole: user.role, action: "GENERATE_ASSET", projectId: project.id, status: "SUCCESS", metadata: { assetId: asset.id } });
     return res.json(asset);
-  } catch (error: unknown) { return res.status(500).json({ error: error instanceof Error ? error.message : "Kunne ikke generere visuelt element." }); }
+  } catch (error: unknown) { console.error("[BookForge] Failed to generate asset:", error); return res.status(500).json({ error: "Kunne ikke generere visuelt element." }); }
 });
 
 app.get("/api/assets/project/:projectId", (req, res) => {
