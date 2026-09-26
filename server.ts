@@ -96,6 +96,11 @@ function getGeminiClient(): GoogleGenAI | null {
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 function loginRateLimited(key: string): boolean {
   const now = Date.now();
+  for (const [entryKey, entry] of loginAttempts) {
+    if (entry.resetAt <= now) loginAttempts.delete(entryKey);
+  }
+  if (loginAttempts.size >= 10000 && !loginAttempts.has(key)) return true;
+
   const current = loginAttempts.get(key);
   if (!current || current.resetAt <= now) {
     loginAttempts.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
@@ -106,8 +111,10 @@ function loginRateLimited(key: string): boolean {
 }
 
 function clientKey(req: Request): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  return (typeof forwarded === "string" ? forwarded.split(",")[0].trim() : req.ip) || "unknown";
+  // Express normalizes req.ip according to the configured trust-proxy policy.
+  // Never trust X-Forwarded-For directly here; otherwise clients can rotate
+  // the apparent source IP and bypass the login limiter.
+  return req.ip || req.socket.remoteAddress || "unknown";
 }
 
 // Protected API routes are deny-by-default. Client identity headers are deliberately ignored.
@@ -563,6 +570,10 @@ app.get("/api/book/versions/:projectId/diff", (req, res) => {
 });
 
 async function startServer(): Promise<void> {
+  if (isProduction) {
+    await db.assertProductionDatabaseReady();
+  }
+
   if (!isProduction) {
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
