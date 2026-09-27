@@ -71,7 +71,10 @@ app.use((_req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   res.setHeader("Cache-Control", "no-store");
-  if (isProduction) res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  if (isProduction) {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    res.setHeader("Content-Security-Policy", "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self';");
+  }
   next();
 });
 app.use(express.json({ limit: "2mb" }));
