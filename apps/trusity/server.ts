@@ -152,14 +152,26 @@ async function startServer() {
         return;
       }
 
+      const parsedSlideCount = Number(slideCount);
+      const safeSlideCount = Number.isInteger(parsedSlideCount)
+        ? Math.min(Math.max(parsedSlideCount, 4), 30)
+        : 8;
+
+      const safePresenterName =
+        typeof presenterName === 'string' ? presenterName.slice(0, 120) : 'Founder & CEO';
+      const safeCompanyName =
+        typeof companyName === 'string' ? companyName.slice(0, 200) : undefined;
+      const safeTargetAudience =
+        typeof targetAudience === 'string' ? targetAudience.slice(0, 500) : undefined;
+
       const plan = await generatePresentationPlan({
         idea: idea.trim(),
         theme,
         tone,
-        presenterName,
-        companyName,
-        targetAudience,
-        slideCount: Number(slideCount) || 8,
+        presenterName: safePresenterName,
+        companyName: safeCompanyName,
+        targetAudience: safeTargetAudience,
+        slideCount: safeSlideCount,
       });
 
       res.json(plan);
