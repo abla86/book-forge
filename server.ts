@@ -226,7 +226,7 @@ app.get("/api/founder/audit-logs", (req, res) => {
 app.get("/api/books", (req, res) => {
   const user = getAuthUser(req);
   const books = db.getProjects();
-  return res.json(user.role === "FOUNDER" || user.role === "ADMIN" ? books : books.filter((book) => !book.ownerId || book.ownerId === user.id));
+  return res.json(user.role === "FOUNDER" || user.role === "ADMIN" ? books : books.filter((book) => book.ownerId === user.id));
 });
 
 app.get("/api/books/:id", (req, res) => {
@@ -312,7 +312,7 @@ app.post("/api/book/generate-full-book", async (req, res) => {
   const ai = getGeminiClient();
   if (!ai) return res.status(503).json({ error: "AI-tjenesten krever konfigurert GEMINI_API_KEY. Falsk simulering er deaktivert." });
   try {
-    const job = await FullBookEngine.startGeneration({ projectId: project.id, idea: idea || project.idea || project.title, title: title || project.title, author: typeof body.author === "string" ? body.author.slice(0, 200) : project.author || user.name, genre: typeof body.genre === "string" ? body.genre.slice(0, 100) : project.genre, subgenre: typeof body.subgenre === "string" ? body.subgenre.slice(0, 100) : undefined, tone: typeof body.tone === "string" ? body.tone.slice(0, 100) : project.tone, audience: typeof body.audience === "string" ? body.audience.slice(0, 200) : undefined, language: typeof body.language === "string" ? body.language.slice(0, 100) : "Norsk (Bokmål)", pov: typeof body.pov === "string" ? body.pov.slice(0, 100) : project.pov, targetWords: Number(body.targetWords) || project.targetWords || 80000, targetChapters: Number(body.targetChapters) || project.targetChapters || 32, acts: Number(body.acts) || project.acts || 4, user }, ai);
+    const job = await FullBookEngine.startGeneration({ projectId: project.id, idea: idea || project.idea || project.title, title: title || project.title, author: typeof body.author === "string" ? body.author.slice(0, 200) : project.author || user.name, genre: typeof body.genre === "string" ? body.genre.slice(0, 100) : project.genre, subgenre: typeof body.subgenre === "string" ? body.subgenre.slice(0, 100) : undefined, tone: typeof body.tone === "string" ? body.tone.slice(0, 100) : project.tone, audience: typeof body.audience === "string" ? body.audience.slice(0, 200) : undefined, language: typeof body.language === "string" ? body.language.slice(0, 100) : "Norsk (Bokmål)", pov: typeof body.pov === "string" ? body.pov.slice(0, 100) : project.pov, targetWords: Number.isFinite(Number(body.targetWords)) ? Math.min(Math.max(Number(body.targetWords), 1000), 300000) : (project.targetWords || 80000), targetChapters: Number.isFinite(Number(body.targetChapters)) ? Math.min(Math.max(Number(body.targetChapters), 1), 200) : (project.targetChapters || 32), acts: Number.isFinite(Number(body.acts)) ? Math.min(Math.max(Number(body.acts), 1), 8) : (project.acts || 4), user }, ai);
     return res.json({ jobId: job.id, projectId: job.projectId, status: job.status, phase: job.phase, totalChapters: job.totalChapters, targetWords: job.totalWords });
   } catch (error: unknown) { console.error("[BookForge] Failed to start generation:", error); return res.status(500).json({ error: "Kunne ikke starte bokgenerering." }); }
 });
