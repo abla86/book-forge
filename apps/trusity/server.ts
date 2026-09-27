@@ -36,7 +36,9 @@ async function startServer() {
   const MAX_TEXT_INPUT = 10_000;
   const MAX_PLAN_BYTES = 1_500_000;
   const MAX_COLLAB_REQUESTS_PER_MINUTE = 30;
+  const MAX_IMAGE_SEARCH_REQUESTS_PER_MINUTE = 60;
   const collaborationBuckets = new Map<string, { windowStart: number; count: number }>();
+  const imageSearchBuckets = new Map<string, { windowStart: number; count: number }>();
 
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
@@ -299,13 +301,27 @@ async function startServer() {
   // API Route: Search curated stock photos
   app.post('/api/images/search', (req, res) => {
     try {
+      if (rateLimitByIp(imageSearchBuckets, MAX_IMAGE_SEARCH_REQUESTS_PER_MINUTE, 60_000, req, res)) {
+        return res.status(429).json({ error: 'Too many image search requests.' });
+      }
       const { query, category, aspectRatio, limit } = req.body;
-      const results = searchStockPhotos(query, category, aspectRatio, limit ? Number(limit) : 24);
+      if (query !== undefined && (typeof query !== 'string' || query.length > 200)) {
+        return res.status(400).json({ error: 'Invalid image search query.' });
+      }
+      if (category !== undefined && (typeof category !== 'string' || category.length > 100)) {
+        return res.status(400).json({ error: 'Invalid image category.' });
+      }
+      if (aspectRatio !== undefined && (typeof aspectRatio !== 'string' || aspectRatio.length > 30)) {
+        return res.status(400).json({ error: 'Invalid image aspect ratio.' });
+      }
+      const parsedLimit = limit === undefined ? 24 : Number(limit);
+      const safeLimit = Number.isFinite(parsedLimit) ? Math.min(Math.max(Math.trunc(parsedLimit), 1), 50) : 24;
+      const results = searchStockPhotos(query, category, aspectRatio, safeLimit);
       res.json({ results, total: results.length });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error searching stock photos:', error);
       res.status(500).json({
-        error: error?.message || 'Failed to search stock photos.',
+        error: error instanceof Error ? error.message : 'Failed to search stock photos.',
       });
     }
   });
@@ -313,17 +329,21 @@ async function startServer() {
   // GET variant for query string searches
   app.get('/api/images/search', (req, res) => {
     try {
-      const query = typeof req.query.query === 'string' ? req.query.query : undefined;
-      const category = typeof req.query.category === 'string' ? req.query.category : undefined;
-      const aspectRatio = typeof req.query.aspectRatio === 'string' ? req.query.aspectRatio : undefined;
-      const limit = req.query.limit ? Number(req.query.limit) : 24;
+      if (rateLimitByIp(imageSearchBuckets, MAX_IMAGE_SEARCH_REQUESTS_PER_MINUTE, 60_000, req, res)) {
+        return res.status(429).json({ error: 'Too many image search requests.' });
+      }
+      const query = typeof req.query.query === 'string' ? req.query.query.slice(0, 200) : undefined;
+      const category = typeof req.query.category === 'string' ? req.query.category.slice(0, 100) : undefined;
+      const aspectRatio = typeof req.query.aspectRatio === 'string' ? req.query.aspectRatio.slice(0, 30) : undefined;
+      const parsedLimit = req.query.limit === undefined ? 24 : Number(req.query.limit);
+      const safeLimit = Number.isFinite(parsedLimit) ? Math.min(Math.max(Math.trunc(parsedLimit), 1), 50) : 24;
 
-      const results = searchStockPhotos(query, category, aspectRatio, limit);
+      const results = searchStockPhotos(query, category, aspectRatio, safeLimit);
       res.json({ results, total: results.length });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error searching stock photos:', error);
       res.status(500).json({
-        error: error?.message || 'Failed to search stock photos.',
+        error: error instanceof Error ? error.message : 'Failed to search stock photos.',
       });
     }
   });
