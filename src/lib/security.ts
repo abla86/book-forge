@@ -92,10 +92,10 @@ export type SecurityAction =
 export class SessionAuthService {
   /** Generates a cryptographically strong session token. */
   static generateSessionToken(userId: string, hoursValid = 72): { token: string; expiresAt: string } {
-    const salt = crypto.randomBytes(24).toString("hex");
-    const payload = `${userId}:${Date.now()}:${salt}`;
-    const token = `bf_${crypto.createHash("sha256").update(payload).digest("hex")}`;
-    const expiresAt = new Date(Date.now() + hoursValid * 3600 * 1000).toISOString();
+    if (typeof userId !== "string" || !userId.trim()) throw new Error("Ugyldig bruker-ID.");
+    const safeHours = Number.isFinite(hoursValid) ? Math.min(Math.max(hoursValid, 1), 72) : 72;
+    const token = "bf_" + crypto.randomBytes(32).toString("base64url");
+    const expiresAt = new Date(Date.now() + safeHours * 3600 * 1000).toISOString();
     return { token, expiresAt };
   }
 }
@@ -182,7 +182,7 @@ class AuditLoggerService {
     errorMessage?: string;
   }): AuditLogEntry {
     const entry: AuditLogEntry = {
-      id: `audit-${Date.now()}-${crypto.randomBytes(6).toString("hex")}`,
+      id: `audit-${crypto.randomUUID()}`,
       timestamp: new Date().toISOString(),
       ...params,
     };

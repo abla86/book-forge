@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { PasswordService, BookAccessControl, type AuthUser } from "../src/lib/security";
+import { PasswordService, BookAccessControl, SessionAuthService, type AuthUser } from "../src/lib/security";
 
 const author: AuthUser = {
   id: "author-1",
@@ -19,6 +19,18 @@ test("password hashing never stores plaintext and verifies correctly", () => {
   assert.equal(hash.split("$").length, 6);
   assert.equal(PasswordService.verify(password, hash), true);
   assert.equal(PasswordService.verify("wrong-password", hash), false);
+});
+
+
+test("session tokens use independent cryptographic randomness and bounded lifetime", () => {
+  const first = SessionAuthService.generateSessionToken("author-1");
+  const second = SessionAuthService.generateSessionToken("author-1");
+  assert.notEqual(first.token, second.token);
+  assert.match(first.token, /^bf_[A-Za-z0-9_-]{43}$/);
+  const firstExpiry = Date.parse(first.expiresAt);
+  assert.ok(firstExpiry > Date.now());
+  const capped = SessionAuthService.generateSessionToken("author-1", 999999);
+  assert.ok(Date.parse(capped.expiresAt) <= Date.now() + 72 * 3600 * 1000 + 2000);
 });
 
 test("password verification rejects malformed hashes", () => {
