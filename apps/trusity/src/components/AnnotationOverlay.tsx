@@ -355,7 +355,7 @@ export const AnnotationCanvasLayer: React.FC<AnnotationCanvasLayerProps> = ({
       if (!coords) return;
 
       const newNote: StickyNote = {
-        id: `note_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        id: `note_${crypto.randomUUID()}`,
         x: Math.min(coords.x, 75),
         y: Math.min(coords.y, 70),
         text: '',
