@@ -14,21 +14,28 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Audit every npm lockfile
+
+      - name: Audit every npm project
         shell: bash
         run: |
           set -euo pipefail
           found=0
-          while IFS= read -r lock; do
+          while IFS= read -r package; do
             found=1
-            dir="$(dirname "$lock")"
+            dir="$(dirname "$package")"
             echo "::group::npm audit $dir"
-            npm audit --prefix "$dir" --audit-level=high
+            if [ -f "$dir/package-lock.json" ]; then
+              npm ci --ignore-scripts --prefix "$dir" --no-audit
+            else
+              npm install --package-lock-only --ignore-scripts --prefix "$dir" --no-audit
+            fi
+            npm audit --audit-level=high --prefix "$dir"
             echo "::endgroup::"
-          done < <(find . -name package-lock.json -not -path '*/node_modules/*' -print)
+          done < <(find . -name package.json -not -path '*/node_modules/*' -not -path './.git/*' -print)
           if [ "$found" -eq 0 ]; then
-            echo "No package-lock.json files found; npm audit not applicable."
+            echo "No npm projects found; npm audit not applicable."
           fi
