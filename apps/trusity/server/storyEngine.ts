@@ -267,9 +267,9 @@ export function buildStoryArcPlan(
     slideType: 'problem',
     layout: 'split_with_stat',
     content: {
-      headline: 'The Hidden Bottleneck Crippling Industry Growth',
+      headline: 'Problem statement — validate with user evidence',
       subheadline:
-        'Organizations are suffocating under manual overhead, disconnected tools, and rising operational debt.',
+        'Describe the target user, workflow, and measurable problem using supplied evidence.',
       badge: '01 / THE PROBLEM',
       bulletPoints: [
         'Describe the specific workflow problem. Add a reliable source for any prevalence or cost estimate.',
@@ -291,8 +291,8 @@ export function buildStoryArcPlan(
     slideType: 'solution',
     layout: 'split_text_image',
     content: {
-      headline: 'Introducing The Intelligent Autonomous Foundation',
-      subheadline: `${analysis.companyName} eliminates fragmented friction with intelligent real-time execution.`,
+      headline: 'Proposed solution — confirm implementation status',
+      subheadline: `Describe what ${analysis.companyName} actually does. Label proposed capabilities as planned, not implemented.`,
       badge: '02 / THE SOLUTION',
       bulletPoints: [
         'Describe onboarding steps and prerequisites; state timing only when measured and supported by test or customer evidence.',
@@ -349,8 +349,8 @@ export function buildStoryArcPlan(
     slideType: 'process_flow',
     layout: 'process_steps',
     content: {
-      headline: 'Seamless Architecture: From Raw Signal to Action',
-      subheadline: 'Illustrative workflow — replace with the steps actually implemented and verified.',
+      headline: 'Proposed architecture — verify each step',
+      subheadline: 'Illustrative workflow only; replace with tested architecture and supported integrations.',
       badge: '04 / TECHNOLOGY & PROCESS',
       processSteps: [
         {
@@ -379,10 +379,10 @@ export function buildStoryArcPlan(
     slideType: 'comparison',
     layout: 'comparison_table',
     content: {
-      headline: 'Why We Win: A Distinct Structural Advantage',
-      subheadline: 'Traditional legacy platforms are slow, complex, and prohibitively expensive.',
+      headline: 'Competitive comparison — evidence required',
+      subheadline: 'Compare alternatives only with sourced, like-for-like evidence.',
       badge: '05 / COMPETITIVE MATRIX',
-      competitorNames: ['Legacy Incumbents & Manual Systems'],
+      competitorNames: ['[Add verified competitor names]'],
       comparisonRows: [
         {
           feature: 'Time to First Value',
@@ -391,16 +391,16 @@ export function buildStoryArcPlan(
           notes: 'Provide comparable evidence and explain the benchmark method.'
         },
         {
-          feature: 'Autonomous Self-Correction',
-          us: true,
-          competitors: false,
-          notes: 'Describe tested behavior; avoid implying exclusivity without evidence.'
+          feature: 'Automation and correction capability',
+          us: '[Describe implemented behavior]',
+          competitors: '[Add sourced competitor evidence]',
+          notes: 'Do not imply autonomous correction or exclusivity unless tested and documented.'
         },
         {
-          feature: 'Enterprise Data Isolation',
-          us: true,
-          competitors: '[Documented competitor evidence required]',
-          notes: 'Only claim a private deployment or zero-retention option if implemented, tested, and contractually supported.'
+          feature: 'Data isolation and deployment options',
+          us: '[Document implemented controls and deployment options]',
+          competitors: '[Add sourced competitor evidence]',
+          notes: 'Do not claim private deployment or zero retention unless implemented, tested, and contractually supported.'
         },
         {
           feature: 'Total Cost of Ownership (TCO)',
@@ -424,40 +424,40 @@ export function buildStoryArcPlan(
       badge: '06 / BUSINESS MODEL',
       pricingTiers: [
         {
-          name: 'Starter',
+          name: 'Starter (draft)',
           price: '[Confirm price]',
-          period: '/mo',
-          description: 'For growing teams automating their core operational bottlenecks.',
+          period: '[Confirm billing period]',
+          description: 'Draft tier. Confirm target customer, scope, and commercial terms.',
           features: [
-            'Up to 10 automated agent workflows',
-            'Standard ERP & CRM connectors',
-            'Community & email support',
-            'Security and compliance status: confirm current independent evidence; do not claim certification unless obtained.',
+            '[Confirm included workflows and limits]',
+            '[List integrations that are implemented and tested]',
+            '[Confirm support model]',
+            '[Document security and compliance evidence, if any]',
           ],
         },
         {
-          name: 'Growth',
+          name: 'Growth (draft)',
           price: '[Confirm price]',
-          period: '/mo',
-          description: 'For scaling companies scaling cross-department operations.',
-          isPopular: true,
+          period: '[Confirm billing period]',
+          description: 'Draft tier. Confirm customer segment and included capabilities.',
+          isPopular: false,
           features: [
-            'Workflow limits: specify only after confirming product enforcement and commercial terms.',
-            'Latency: add measured performance and test conditions, if available.',
-            'Dedicated success manager',
-            'Advanced analytics & audit logs',
+            '[Confirm workflow limits and enforcement]',
+            '[Add measured performance only when tested]',
+            '[Confirm support model]',
+            '[Confirm analytics and audit features exist]',
           ],
         },
         {
-          name: 'Enterprise',
-          price: 'Custom',
-          period: '/annual',
-          description: 'For Fortune 500 enterprises requiring dedicated VPC & SLA guarantees.',
+          name: 'Enterprise (draft)',
+          price: '[Confirm price]',
+          period: '[Confirm billing period]',
+          description: 'Draft tier. Confirm hosting, service levels, support, and model capabilities.',
           features: [
-            'On-premises / Private VPC deployment',
-            'Uptime/SLA: add only when an approved SLA and operational measurements exist.',
-            'Custom model fine-tuning',
-            '24/7 dedicated engineering support',
+            '[Confirm hosting and deployment options]',
+            '[Add an approved SLA only if one exists]',
+            '[Confirm model customization capabilities]',
+            '[Confirm support availability and contract terms]',
           ],
         },
       ],
@@ -471,24 +471,20 @@ export function buildStoryArcPlan(
     slideType: 'call_to_action',
     layout: 'full_bleed_statement',
     content: {
-      headline: 'The Opportunity: Accelerate Our Next Phase',
+      headline: 'Next steps — complete before presentation',
       subheadline:
         'Funding ask not supplied. Add the confirmed amount, round type, intended use of funds, and approval before presenting.',
       badge: '07 / THE ASK',
       ctaAction: {
-        primaryText: 'JOIN OUR SEED ROUND',
+        primaryText: '[Add approved call to action]',
         askAmount: '[Add confirmed funding ask]',
         contactEmail: '[Add verified contact email]',
-        useOfFunds: [
-          { category: 'Product & AI Engineering', percentage: 50 },
-          { category: 'Go-to-Market & Enterprise Sales', percentage: 30 },
-          { category: 'Security, Compliance & Infrastructure', percentage: 20 },
-        ],
+        useOfFunds: [],
       },
       bulletPoints: [
-        '50% R&D: Deepening multi-agent orchestration and expanding connector ecosystem.',
-        '30% GTM: Hiring seasoned enterprise sales reps and building partner pipelines.',
-        '20% Operations: Enterprise compliance certifications and cloud infrastructure.',
+        '[Add approved use-of-funds allocation, if fundraising is confirmed].',
+        '[Add approved commercial plan and hiring assumptions, if supplied].',
+        '[Add approved operations budget; do not imply certifications are obtained].',
       ],
       speakerNotes: 'State the funding ask and use-of-funds allocation only after the user confirms the amount and percentages. Otherwise present them as editable placeholders.',
     },
