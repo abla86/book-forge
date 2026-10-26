@@ -39,7 +39,7 @@ export async function analyzeBusinessIdea(
 
   if (ai) {
     try {
-      const prompt = `Analyze this business idea and extract key strategic pitch deck elements.
+      const prompt = `Analyze this business idea and extract draft pitch-deck elements. Never invent market sizes, growth rates, benchmarks, customer interviews, product capabilities, compliance certifications, pricing, revenue, contact details, or funding terms. If the user has not supplied a fact, return a clearly labelled placeholder such as 'Not supplied — add a verifiable source' rather than guessing.
 Idea: "${idea}"
 Target Audience: ${targetAudience || 'Investors and early adopters'}
 Tone: ${tone || 'persuasive'}
@@ -51,7 +51,7 @@ Respond with JSON matching the schema.`;
         contents: prompt,
         config: {
           systemInstruction:
-            'You are an elite venture capital pitch deck advisor and startup strategist. Extract clear, impactful, concise company names, taglines, and market parameters.',
+            'You are a careful pitch-deck drafting assistant. Distinguish user-provided facts from assumptions. Do not fabricate market data, evidence, metrics, certifications, customer claims, prices, or funding terms. Use explicit placeholders when information is missing.',
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -478,7 +478,7 @@ export function buildStoryArcPlan(
       ctaAction: {
         primaryText: 'JOIN OUR SEED ROUND',
         askAmount: '[Add confirmed funding ask]',
-        contactEmail: 'founders@trusity.io',
+        contactEmail: '[Add verified contact email]',
         useOfFunds: [
           { category: 'Product & AI Engineering', percentage: 50 },
           { category: 'Go-to-Market & Enterprise Sales', percentage: 30 },
