@@ -1,6 +1,6 @@
 # BookForge AI
 
-> A production-minded AI-assisted book development platform for planning, writing, reviewing, versioning and exporting complete books.
+> An AI-assisted book development application for planning, writing, reviewing, versioning and exporting books. Production readiness depends on deployment-specific validation and is not implied by this description.
 
 ## Overview
 
