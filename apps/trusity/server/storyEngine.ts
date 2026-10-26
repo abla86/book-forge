@@ -101,11 +101,11 @@ Respond with JSON matching the schema.`;
         : 'Fragmented manual legacy systems cost enterprises billions annually in lost productivity and errors.',
     solutionSummary:
       cleanIdea ||
-      'An end-to-end autonomous intelligent platform delivering 10x workflow efficiency and instant enterprise ROI.',
+      'Describe the proposed solution and its expected benefits; validate any performance or ROI claim with evidence before use.',
     targetAudience: targetAudience || 'Enterprise leaders, VP Operations, and strategic innovation executives',
-    marketSizeEstimate: '$42B Total Addressable Market expanding at 24.5% CAGR through 2030',
+    marketSizeEstimate: 'Not supplied. Add a source-backed market-size estimate and date, or label the estimate as an assumption.',
     monetizationModel: 'B2B SaaS subscription tiered by seats, with enterprise consumption-based API tiers',
-    keyDifferentiator: 'Proprietary automated engine with real-time auditability, zero-lock-in, and instant onboarding',
+    keyDifferentiator: 'Draft hypothesis only. Confirm differentiators, integrations, auditability, and lock-in claims against actual product capabilities.',
   };
 }
 
@@ -136,7 +136,7 @@ export async function generatePresentationPlan(
 
   if (ai) {
     try {
-      const planPrompt = `You are Trusity AI Presentation Generator. Generate a complete investor-ready pitch deck presentation with exactly ${slideCount} slides following a logical story arc.
+      const planPrompt = `You are Trusity AI Presentation Generator. Draft a pitch deck with exactly ${slideCount} slides following a logical story arc. Do not invent or imply verified facts. Only use market figures, citations, performance metrics, customer research, compliance certifications, pricing, customer names, team credentials, uptime/SLA claims, contact details, or fundraising terms explicitly supplied by the user. If information is missing, use a clearly labelled placeholder such as '[Add source-backed market estimate]' or '[Confirm pricing]'.
 Business Name: ${analysis.companyName}
 Tagline: ${analysis.tagline}
 Core Idea: ${idea}
@@ -164,7 +164,7 @@ For EVERY slide:
 - Provide detailed speaker notes written for the presenter to say out loud during the pitch!
 - If layout is split_with_stat, provide bulletPoints and statistic ({number, label, context})
 - If layout is metrics_grid, provide 3-4 metrics with {label, value, change, subtext}
-- If layout is comparison_table, provide comparisonRows with {feature, us: true, competitors: false, notes}
+- If layout is comparison_table, provide comparisonRows with {feature, us: '[Verify capability]', competitors: '[Evidence required]', notes}
 - If layout is process_steps, provide 3-4 steps {number, title, desc}
 - If layout is pricing_table, provide 3 pricingTiers {name, price, period, description, features, isPopular}
 - If layout is team_cards, provide 3 teamMembers {name, role, bio, avatarInitials}
@@ -177,7 +177,7 @@ For EVERY slide:
         contents: planPrompt,
         config: {
           systemInstruction:
-            'You are an expert pitch deck writer. Return valid JSON strictly matching the presentation structure. Output realistic numbers, compelling metrics, and natural speaker notes.',
+            'You are a careful pitch-deck drafter. Return valid JSON strictly matching the presentation structure. Never fabricate statistics, sources, customer interviews, benchmarks, certifications, product capabilities, pricing, contact details, funding amounts, or guarantees. Use explicit placeholders for missing facts and label assumptions. Do not describe the deck as investor-ready or verified.',
           responseMimeType: 'application/json',
         },
       });
@@ -252,10 +252,10 @@ export function buildStoryArcPlan(
     content: {
       headline: analysis.companyName,
       subheadline: analysis.tagline,
-      badge: 'INVESTOR PITCH DECK • SEED ROUND',
+      badge: 'PITCH DECK DRAFT',
       ctaAction: {
         primaryText: 'DISCOVER THE VISION',
-        contactEmail: 'founders@trusity.io',
+        contactEmail: '[Add verified contact email]',
       },
       speakerNotes: `Good morning everyone. I am ${presenterName}, and today I am excited to introduce ${analysis.companyName}. We are on a mission to redefine how modern businesses operate by turning raw friction into unfair competitive advantage. Let's dive in.`,
     },
@@ -272,16 +272,16 @@ export function buildStoryArcPlan(
         'Organizations are suffocating under manual overhead, disconnected tools, and rising operational debt.',
       badge: '01 / THE PROBLEM',
       bulletPoints: [
-        'Over 68% of enterprise knowledge work is wasted on manual data re-entry and fragmented handoffs.',
-        'Legacy solutions require months of custom integration with fragile maintenance overhead.',
-        'Rapidly rising workforce costs compound the urgency for automated intelligence.',
+        'Describe the specific workflow problem. Add a reliable source for any prevalence or cost estimate.'
+        'Describe current alternatives and integration effort using evidence from the target market.'
+        'Explain the business impact using customer evidence or a clearly labelled hypothesis.'
       ],
       statistic: {
-        number: '$280B',
-        label: 'Annual Global Cost of Inefficient Workflows',
-        context: 'Source: Enterprise Operations Productivity Index (2025)',
+        number: '[Add sourced figure]',
+        label: 'Market/problem metric (source required)',
+        context: 'Placeholder — add a verifiable source, publication date, and methodology before presenting.'
       },
-      speakerNotes: `Take a look at that number: $280 Billion. This isn't just a minor operational annoyance—it is a catastrophic drag on bottom-line margins. When we interviewed over 40 industry leaders, 92% said manual friction is their single largest bottleneck this year.`,
+      speakerNotes: 'Explain the problem using documented evidence from the user. Do not state interview counts, percentages, or financial impact unless the user supplied verifiable evidence.' ,
     },
   });
 
@@ -295,15 +295,15 @@ export function buildStoryArcPlan(
       subheadline: `${analysis.companyName} eliminates fragmented friction with intelligent real-time execution.`,
       badge: '02 / THE SOLUTION',
       bulletPoints: [
-        'Zero-Configuration Onboarding: Ingests existing enterprise workflows in under 15 minutes.',
-        'Adaptive Intelligence: Self-optimizing loops that learn from human-in-the-loop validation.',
-        'Enterprise-Grade Security: SOC2 Type II compliant with end-to-end data privacy by design.',
-        'Measurable ROI from Day 1: Teams recover an average of 14 hours per engineer each week.',
+        'Describe onboarding steps and prerequisites; state timing only when measured and supported by test or customer evidence.'
+        'Describe the actual automation and human-review workflow; do not imply learning or self-optimisation unless implemented.'
+        'Describe security controls that are implemented and tested. Do not claim SOC 2 or other certification without current independent evidence.'
+        'Add measured customer outcomes only when supported by documented methodology and results; otherwise label expected benefits as hypotheses.'
       ],
       statistic: {
-        number: '10x',
-        label: 'Faster Workflow Execution Speed',
-        context: 'Validated across initial private beta deployments',
+        number: '[Add measured result]',
+        label: 'Performance comparison (evidence required)',
+        context: 'Placeholder — no validation evidence supplied.'
       },
       speakerNotes: `Here is our breakthrough: Instead of adding another clunky dashboard to their stack, ${analysis.companyName} acts as an intelligent autonomous layer. It connects seamlessly into existing systems and produces tangible efficiency immediately.`,
     },
@@ -322,24 +322,24 @@ export function buildStoryArcPlan(
       metrics: [
         {
           label: 'Total Addressable Market (TAM)',
-          value: '$54.2B',
-          change: '+28% CAGR',
-          subtext: 'Global intelligent workflow sector',
+          value: '[Source required]',
+          change: '[Source required]',
+          subtext: 'Define the market and cite the source, date, geography, and calculation.'
         },
         {
           label: 'Serviceable Addressable Market (SAM)',
-          value: '$16.8B',
+          value: '[Source required]',
           change: 'Immediate target',
-          subtext: 'Mid-to-large enterprise segment',
+          subtext: 'Define the segment and cite the source and calculation.'
         },
         {
           label: 'Serviceable Obtainable Market (SOM)',
-          value: '$1.4B',
+          value: '[Assumption — validate]',
           change: '3-Year Horizon',
-          subtext: 'High-margin niche beachhead',
+          subtext: 'Document assumptions, time horizon, and calculation.'
         },
       ],
-      speakerNotes: `Our market timing couldn't be better. The TAM sits at $54 Billion and is compounding at a 28% annual rate. We are capturing our wedge in the SAM with mid-market enterprises where switching costs are manageable and urgency is at an all-time high.`,
+      speakerNotes: 'Explain the market estimate only after adding reliable sources and transparent TAM/SAM/SOM assumptions. Do not claim traction or market timing without evidence.',
     },
   });
 
@@ -350,26 +350,26 @@ export function buildStoryArcPlan(
     layout: 'process_steps',
     content: {
       headline: 'Seamless Architecture: From Raw Signal to Action',
-      subheadline: 'A three-stage autonomous pipeline engineered for enterprise reliability.',
+      subheadline: 'Illustrative workflow — replace with the steps actually implemented and verified.'
       badge: '04 / TECHNOLOGY & PROCESS',
       processSteps: [
         {
           number: 1,
-          title: 'Deep Connect & Ingest',
-          desc: 'Instant plug-and-play synchronization with existing tools, databases, and message brokers without code changes.',
+          title: 'Connect and ingest (confirm supported integrations)',
+          desc: 'Describe supported connectors, setup steps, permissions, and limitations. Do not promise plug-and-play operation unless tested.',
         },
         {
           number: 2,
           title: 'Intelligent Orchestration',
-          desc: 'Proprietary agentic models synthesize goals, evaluate constraints, and execute deterministic action plans.',
+          desc: 'Describe the actual model, planning, validation, and execution behavior. Label unimplemented steps as planned.',
         },
         {
           number: 3,
           title: 'Audited Verification & Rollout',
-          desc: 'Continuous real-time telemetry, human checkpoints, and automatic self-healing rollbacks ensure 99.99% reliability.',
+          desc: 'Document monitoring, human approval, rollback behavior, and measured availability. Do not promise reliability or self-healing without operational evidence.',
         },
       ],
-      speakerNotes: `Under the hood, simplicity is our biggest strength. Step one connects securely to the customer's data plane in minutes. Step two executes deterministic workflows. Step three verifies the output with audit-grade precision.`,
+      speakerNotes: 'Walk through the real architecture and identify which steps are implemented, planned, or manually performed. Avoid guarantees such as “audit-grade” unless independently validated.',
     },
   });
 
@@ -386,30 +386,30 @@ export function buildStoryArcPlan(
       comparisonRows: [
         {
           feature: 'Time to First Value',
-          us: '< 24 Hours',
-          competitors: '3 - 6 Months',
-          notes: 'Pre-trained domain workflows',
+          us: '[Add measured result]',
+          competitors: '[Add sourced competitor benchmark]',
+          notes: 'Provide comparable evidence and explain the benchmark method.'
         },
         {
           feature: 'Autonomous Self-Correction',
           us: true,
           competitors: false,
-          notes: 'Feedback-driven loops',
+          notes: 'Describe tested behavior; avoid implying exclusivity without evidence.'
         },
         {
           feature: 'Enterprise Data Isolation',
           us: true,
-          competitors: 'Partial / Cloud Only',
-          notes: 'Zero-retention private VPC option',
+          competitors: '[Documented competitor evidence required]',
+          notes: 'Only claim a private deployment or zero-retention option if implemented, tested, and contractually supported.'
         },
         {
           feature: 'Total Cost of Ownership (TCO)',
-          us: '70% Lower',
-          competitors: 'High + Consulting Fees',
-          notes: 'Transparent consumption tiers',
+          us: '[Add substantiated cost comparison]',
+          competitors: '[Source required]',
+          notes: 'Confirm actual pricing and contract terms.'
         },
       ],
-      speakerNotes: `When you compare us side-by-side with incumbent legacy providers, the contrast is stark. Where they require 6 months of professional services, we deliver live production value in under 24 hours at 70% lower TCO.`,
+      speakerNotes: 'Do not make comparative claims unless supported by a like-for-like study with sources, scope, and dates.',
     },
   });
 
@@ -419,31 +419,31 @@ export function buildStoryArcPlan(
     slideType: 'business_model',
     layout: 'pricing_table',
     content: {
-      headline: 'Scalable Monetization & Unit Economics',
-      subheadline: 'Predictable high-margin recurring SaaS with organic expansion triggers.',
+      headline: 'Proposed Business Model — Confirm Before Use',
+      subheadline: 'Pricing, margins, and expansion assumptions have not been verified; replace placeholders with approved commercial terms.'
       badge: '06 / BUSINESS MODEL',
       pricingTiers: [
         {
           name: 'Starter',
-          price: '$499',
+          price: '[Confirm price]',
           period: '/mo',
           description: 'For growing teams automating their core operational bottlenecks.',
           features: [
             'Up to 10 automated agent workflows',
             'Standard ERP & CRM connectors',
             'Community & email support',
-            'SOC2 Type I compliance',
+            'Security and compliance status: confirm current independent evidence; do not claim certification unless obtained.'
           ],
         },
         {
           name: 'Growth',
-          price: '$2,499',
+          price: '[Confirm price]',
           period: '/mo',
           description: 'For scaling companies scaling cross-department operations.',
           isPopular: true,
           features: [
-            'Unlimited automated workflows',
-            'Sub-second execution latency',
+            'Workflow limits: specify only after confirming product enforcement and commercial terms.'
+            'Latency: add measured performance and test conditions, if available.'
             'Dedicated success manager',
             'Advanced analytics & audit logs',
           ],
@@ -455,13 +455,13 @@ export function buildStoryArcPlan(
           description: 'For Fortune 500 enterprises requiring dedicated VPC & SLA guarantees.',
           features: [
             'On-premises / Private VPC deployment',
-            '99.99% uptime guarantee SLA',
+            'Uptime/SLA: add only when an approved SLA and operational measurements exist.'
             'Custom model fine-tuning',
             '24/7 dedicated engineering support',
           ],
         },
       ],
-      speakerNotes: `Our business model is proven and capital-efficient. We deploy a land-and-expand strategy starting at $499/month, scaling naturally into enterprise contracts worth six figures as customer workflow volume expands.`,
+      speakerNotes: 'Explain the proposed revenue model as a hypothesis unless pricing, margins, customer traction, and contract values are backed by evidence.',
     },
   });
 
@@ -473,11 +473,11 @@ export function buildStoryArcPlan(
     content: {
       headline: 'The Opportunity: Accelerate Our Next Phase',
       subheadline:
-        'We are raising $2.5M Seed round to expand engineering velocity and capture early enterprise market share.',
+        'Funding ask not supplied. Add the confirmed amount, round type, intended use of funds, and approval before presenting.'
       badge: '07 / THE ASK',
       ctaAction: {
         primaryText: 'JOIN OUR SEED ROUND',
-        askAmount: '$2,500,000 SEED ROUND',
+        askAmount: '[Add confirmed funding ask]',
         contactEmail: 'founders@trusity.io',
         useOfFunds: [
           { category: 'Product & AI Engineering', percentage: 50 },
@@ -490,7 +490,7 @@ export function buildStoryArcPlan(
         '30% GTM: Hiring seasoned enterprise sales reps and building partner pipelines.',
         '20% Operations: Enterprise compliance certifications and cloud infrastructure.',
       ],
-      speakerNotes: `To capture this massive inflection point, we are raising a $2.5 Million Seed round. 50% will be allocated to product engineering, 30% to accelerating our enterprise sales engine, and 20% to operations. We would love to partner with you on this journey. Thank you!`,
+      speakerNotes: 'State the funding ask and use-of-funds allocation only after the user confirms the amount and percentages. Otherwise present them as editable placeholders.',
     },
   });
 
