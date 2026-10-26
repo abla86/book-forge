@@ -272,9 +272,9 @@ export function buildStoryArcPlan(
         'Organizations are suffocating under manual overhead, disconnected tools, and rising operational debt.',
       badge: '01 / THE PROBLEM',
       bulletPoints: [
-        'Describe the specific workflow problem. Add a reliable source for any prevalence or cost estimate.'
-        'Describe current alternatives and integration effort using evidence from the target market.'
-        'Explain the business impact using customer evidence or a clearly labelled hypothesis.'
+        'Describe the specific workflow problem. Add a reliable source for any prevalence or cost estimate.',
+        'Describe current alternatives and integration effort using evidence from the target market.',
+        'Explain the business impact using customer evidence or a clearly labelled hypothesis.',
       ],
       statistic: {
         number: '[Add sourced figure]',
@@ -295,10 +295,10 @@ export function buildStoryArcPlan(
       subheadline: `${analysis.companyName} eliminates fragmented friction with intelligent real-time execution.`,
       badge: '02 / THE SOLUTION',
       bulletPoints: [
-        'Describe onboarding steps and prerequisites; state timing only when measured and supported by test or customer evidence.'
-        'Describe the actual automation and human-review workflow; do not imply learning or self-optimisation unless implemented.'
-        'Describe security controls that are implemented and tested. Do not claim SOC 2 or other certification without current independent evidence.'
-        'Add measured customer outcomes only when supported by documented methodology and results; otherwise label expected benefits as hypotheses.'
+        'Describe onboarding steps and prerequisites; state timing only when measured and supported by test or customer evidence.',
+        'Describe the actual automation and human-review workflow; do not imply learning or self-optimisation unless implemented.',
+        'Describe security controls that are implemented and tested. Do not claim SOC 2 or other certification without current independent evidence.',
+        'Add measured customer outcomes only when supported by documented methodology and results; otherwise label expected benefits as hypotheses.',
       ],
       statistic: {
         number: '[Add measured result]',
@@ -350,7 +350,7 @@ export function buildStoryArcPlan(
     layout: 'process_steps',
     content: {
       headline: 'Seamless Architecture: From Raw Signal to Action',
-      subheadline: 'Illustrative workflow — replace with the steps actually implemented and verified.'
+      subheadline: 'Illustrative workflow — replace with the steps actually implemented and verified.',
       badge: '04 / TECHNOLOGY & PROCESS',
       processSteps: [
         {
@@ -420,7 +420,7 @@ export function buildStoryArcPlan(
     layout: 'pricing_table',
     content: {
       headline: 'Proposed Business Model — Confirm Before Use',
-      subheadline: 'Pricing, margins, and expansion assumptions have not been verified; replace placeholders with approved commercial terms.'
+      subheadline: 'Pricing, margins, and expansion assumptions have not been verified; replace placeholders with approved commercial terms.',
       badge: '06 / BUSINESS MODEL',
       pricingTiers: [
         {
@@ -432,7 +432,7 @@ export function buildStoryArcPlan(
             'Up to 10 automated agent workflows',
             'Standard ERP & CRM connectors',
             'Community & email support',
-            'Security and compliance status: confirm current independent evidence; do not claim certification unless obtained.'
+            'Security and compliance status: confirm current independent evidence; do not claim certification unless obtained.',
           ],
         },
         {
@@ -442,8 +442,8 @@ export function buildStoryArcPlan(
           description: 'For scaling companies scaling cross-department operations.',
           isPopular: true,
           features: [
-            'Workflow limits: specify only after confirming product enforcement and commercial terms.'
-            'Latency: add measured performance and test conditions, if available.'
+            'Workflow limits: specify only after confirming product enforcement and commercial terms.',
+            'Latency: add measured performance and test conditions, if available.',
             'Dedicated success manager',
             'Advanced analytics & audit logs',
           ],
@@ -455,7 +455,7 @@ export function buildStoryArcPlan(
           description: 'For Fortune 500 enterprises requiring dedicated VPC & SLA guarantees.',
           features: [
             'On-premises / Private VPC deployment',
-            'Uptime/SLA: add only when an approved SLA and operational measurements exist.'
+            'Uptime/SLA: add only when an approved SLA and operational measurements exist.',
             'Custom model fine-tuning',
             '24/7 dedicated engineering support',
           ],
@@ -473,7 +473,7 @@ export function buildStoryArcPlan(
     content: {
       headline: 'The Opportunity: Accelerate Our Next Phase',
       subheadline:
-        'Funding ask not supplied. Add the confirmed amount, round type, intended use of funds, and approval before presenting.'
+        'Funding ask not supplied. Add the confirmed amount, round type, intended use of funds, and approval before presenting.',
       badge: '07 / THE ASK',
       ctaAction: {
         primaryText: 'JOIN OUR SEED ROUND',
