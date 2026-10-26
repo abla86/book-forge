@@ -1,21 +1,10 @@
-# Security Policy
+# Security Policy — Trusity sub-application
 
-## Supported Versions
+Trusity is an AI-assisted presentation sub-application. Generated slides, claims, references, images and exports require human review; successful generation is not proof of accuracy or licensing clearance.
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+- Keep `GEMINI_API_KEY` server-side and out of Git history.
+- Do not submit confidential or personal information to AI providers without reviewing provider terms, retention and lawful basis.
+- Treat imported content and model output as untrusted; sanitize before rendering HTML and review exports before sharing.
+- Report suspected vulnerabilities privately through GitHub private vulnerability reporting if enabled, otherwise contact the maintainer privately. Redact secrets and personal data.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
-
-## Reporting a Vulnerability
-
-Use this section to tell people how to report a vulnerability.
-
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Passing tests does not establish production security, factual correctness or privacy compliance.
