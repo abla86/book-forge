@@ -1,21 +1,5 @@
-# Security Policy
+# Security Policy — archived code
 
-## Supported Versions
+This is an archived BookForge implementation and is not the supported development line. No ongoing security updates are promised for this directory.
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
-
-## Reporting a Vulnerability
-
-Use this section to tell people how to report a vulnerability.
-
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Use the maintained application at https://github.com/abla86/book-forge. If this archived code remains deployed, treat it as unsupported and review migration needs before moving user data or credentials. Report new vulnerabilities against the canonical repository and never include secrets or personal data in public issues.
