@@ -254,7 +254,7 @@ export class FullBookEngineService {
       },
       aiClient
     ).catch((err) => {
-      console.error(`[FullBookEngine] Gjenopptatt jobb ${jobId} feilet:`, err);
+      console.error("[FullBookEngine] Gjenopptatt jobb %s feilet:", jobId, err);
     });
 
     return resumedJob;
